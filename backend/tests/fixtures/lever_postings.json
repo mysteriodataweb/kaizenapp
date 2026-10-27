@@ -1,0 +1,23 @@
+[
+  {
+    "id": "a1b2c3",
+    "text": "Marketing Intern",
+    "categories": {"commitment": "Internship", "department": "Marketing", "location": "Lisbon", "team": "Growth", "allLocations": ["Lisbon"]},
+    "country": "PT",
+    "workplaceType": "hybrid",
+    "createdAt": 1790000000000,
+    "hostedUrl": "https://jobs.lever.co/exemple/a1b2c3",
+    "applyUrl": "https://jobs.lever.co/exemple/a1b2c3/apply",
+    "descriptionPlain": "Support growth campaigns. Digital marketing, SEO.",
+    "lists": [{"text": "Requirements", "content": "<li>Fluent English</li>"}],
+    "additionalPlain": "",
+    "salaryRange": {"min": 1200, "max": 1400, "currency": "EUR", "interval": "per-month-salary"}
+  },
+  {
+    "id": "d4e5f6",
+    "text": "Account Executive",
+    "categories": {"commitment": "Full-time", "location": "Madrid"},
+    "hostedUrl": "https://jobs.lever.co/exemple/d4e5f6",
+    "descriptionPlain": "Sales role."
+  }
+]

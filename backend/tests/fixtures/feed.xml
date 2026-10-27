@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>Université Exemple — Bourses</title>
+<link>https://www.univ-exemple.fr/bourses</link>
+<description>Appels à candidatures</description>
+<item>
+  <title>Bourse d'excellence pour le Master en énergies renouvelables</title>
+  <link>https://www.univ-exemple.fr/bourses/master-energies-2027</link>
+  <guid>bourse-energies-2027</guid>
+  <description>&lt;p&gt;Bourse couvrant les frais de scolarité. Date limite : 15 janvier 2027.&lt;/p&gt;</description>
+  <pubDate>Mon, 05 Oct 2026 09:00:00 GMT</pubDate>
+</item>
+<item>
+  <title>Conférence publique sur le climat</title>
+  <link>https://www.univ-exemple.fr/agenda/conference</link>
+  <description>Événement ouvert à tous.</description>
+</item>
+</channel></rss>
