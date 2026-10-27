@@ -142,3 +142,23 @@ def test_admin_routes_forbidden_for_non_admin(client, db):
     headers = login(client, "simple@example.com")
     assert client.get("/api/v1/admin/sources", headers=headers).status_code == 403
     assert client.post("/api/v1/admin/collect", headers=headers).status_code == 403
+
+
+def test_oversized_request_rejected_early(client, auth, settings):
+    resp = client.post(
+        "/api/v1/documents",
+        headers={
+            **auth,
+            "content-length": str((settings.max_upload_mb + 5) * 1024 * 1024),
+            "content-type": "multipart/form-data; boundary=x",
+        },
+        content=b"--x--",
+    )
+    assert resp.status_code == 413
+
+
+def test_security_headers(client):
+    resp = client.get("/api/v1/health")
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-request-id"]
+    assert resp.headers["cache-control"] == "no-store"

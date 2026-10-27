@@ -273,3 +273,25 @@ def test_admin_source_management(client, auth, db):
     assert (
         client.patch(f"/api/v1/admin/sources/{sid}", headers=auth, json={"rate_limit_seconds": 0.1}).status_code == 422
     )
+
+
+def test_daily_job_runs_all_steps(db, user):
+    from app.jobs.daily import run
+
+    result = run(db)
+    assert set(result) == {"collect", "recompute", "deadlines", "digest", "cleanup"}
+
+
+def test_job_modules_are_importable_cli_entrypoints():
+    import importlib
+
+    for name in (
+        "collect_opportunities",
+        "recompute_matches",
+        "send_digest",
+        "check_deadlines",
+        "cleanup_logs",
+        "daily",
+    ):
+        module = importlib.import_module(f"app.jobs.{name}")
+        assert module.__doc__ and "python -m app.jobs" in module.__doc__ or name == "recompute_matches"

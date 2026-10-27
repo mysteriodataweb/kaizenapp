@@ -1,0 +1,17 @@
+{
+  "name": "opportunity-intelligence",
+  "private": true,
+  "description": "Recherche, matching explicable et suivi des candidatures (stages & bourses de master).",
+  "scripts": {
+    "web:dev": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build",
+    "web:lint": "npm --prefix apps/web run lint",
+    "web:typecheck": "npm --prefix apps/web run typecheck",
+    "web:test": "npm --prefix apps/web run test",
+    "e2e": "bash scripts/e2e.sh",
+    "api:dev": "cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000",
+    "api:test": "cd backend && .venv/bin/pytest",
+    "api:lint": "cd backend && .venv/bin/ruff check app tests && .venv/bin/ruff format --check app tests",
+    "api:migrate": "cd backend && .venv/bin/alembic upgrade head"
+  }
+}

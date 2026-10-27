@@ -1,0 +1,120 @@
+# Blueprint Render — Opportunity Intelligence (backend FastAPI + tâches planifiées)
+# Aucune valeur secrète ici : DATABASE_URL, RESEND_API_KEY, etc. sont saisies dans le
+# dashboard Render (groupe d'environnement « opportunity-intelligence-shared »).
+# Voir docs/DEPLOYMENT.md.
+
+envVarGroups:
+  - name: opportunity-intelligence-shared
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEFAULT_TIMEZONE
+        value: Europe/Paris
+      - key: STORAGE_PROVIDER
+        value: none
+      - key: MAX_UPLOAD_MB
+        value: "4"
+      # À AJOUTER dans le dashboard (Env Groups) après création du Blueprint :
+      #   DATABASE_URL            (Neon, chaîne « pooled »)
+      #   DATABASE_MIGRATION_URL  (Neon, chaîne directe — recommandé pour Alembic)
+      #   FRONTEND_URL            (URL Vercel de production)
+      #   CORS_ORIGINS            (URL Vercel de production)
+      #   RESEND_API_KEY, EMAIL_FROM, ALERT_RECIPIENT   (facultatif : sinon mode simulation)
+      #   AI_PROVIDER, AI_API_KEY                       (facultatif)
+      #   STORAGE_PROVIDER=s3 + STORAGE_BUCKET/ENDPOINT_URL/ACCESS_KEY/SECRET_KEY (facultatif)
+      #   BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD (une seule fois, puis supprimer le mot de passe)
+
+services:
+  - type: web
+    name: opportunity-intelligence-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    # Migrations (idempotentes) + sources par défaut + amorçage admin unique, puis l'API.
+    startCommand: >-
+      alembic upgrade head &&
+      python -m app.cli seed-sources &&
+      python -m app.cli bootstrap-admin &&
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - fromGroup: opportunity-intelligence-shared
+
+  # Tâches planifiées (horaires en UTC). Les Cron Jobs Render sont facturés à l'usage :
+  # pour réduire les coûts, remplacer ces 5 jobs par le seul « oi-daily » commenté plus bas.
+  - type: cron
+    name: oi-collect-opportunities
+    runtime: python
+    rootDir: backend
+    region: frankfurt
+    schedule: "15 4 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.jobs.collect_opportunities
+    envVars:
+      - fromGroup: opportunity-intelligence-shared
+
+  - type: cron
+    name: oi-recompute-matches
+    runtime: python
+    rootDir: backend
+    region: frankfurt
+    schedule: "45 4 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.jobs.recompute_matches
+    envVars:
+      - fromGroup: opportunity-intelligence-shared
+
+  - type: cron
+    name: oi-check-deadlines
+    runtime: python
+    rootDir: backend
+    region: frankfurt
+    schedule: "0 6 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.jobs.check_deadlines
+    envVars:
+      - fromGroup: opportunity-intelligence-shared
+
+  - type: cron
+    name: oi-send-digest
+    runtime: python
+    rootDir: backend
+    region: frankfurt
+    # Quotidien : chaque utilisateur reçoit son résumé (quotidien ou hebdomadaire) une seule fois par période.
+    schedule: "5 7 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.jobs.send_digest
+    envVars:
+      - fromGroup: opportunity-intelligence-shared
+
+  - type: cron
+    name: oi-cleanup
+    runtime: python
+    rootDir: backend
+    region: frankfurt
+    schedule: "30 3 * * 0"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.jobs.cleanup_logs
+    envVars:
+      - fromGroup: opportunity-intelligence-shared
+
+  # Option économique (un seul Cron Job) — décommenter et supprimer les 5 jobs ci-dessus :
+  # - type: cron
+  #   name: oi-daily
+  #   runtime: python
+  #   rootDir: backend
+  #   region: frankfurt
+  #   schedule: "15 5 * * *"
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m app.jobs.daily
+  #   envVars:
+  #     - fromGroup: opportunity-intelligence-shared

@@ -8,6 +8,7 @@ import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
@@ -32,9 +33,9 @@ def create_app() -> FastAPI:
             "Authentification : `Authorization: Bearer <jeton de session>` obtenu via `/api/v1/auth/login`. "
             "Aucune candidature n'est jamais envoyée automatiquement."
         ),
-        docs_url="/docs" if not settings.is_production else None,
-        redoc_url="/redoc",
-        openapi_url="/openapi.json",
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
     )
     app.add_middleware(
         CORSMiddleware,
@@ -44,6 +45,20 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
         max_age=600,
     )
+
+    max_body = (settings.max_upload_mb + 1) * 1024 * 1024
+
+    @app.middleware("http")
+    async def limit_body_size(request: Request, call_next):  # type: ignore[no-untyped-def]
+        length = request.headers.get("content-length")
+        if length and length.isdigit() and int(length) > max_body:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "error": {"code": "payload_too_large", "message": "Requête trop volumineuse.", "details": None}
+                },
+            )
+        return await call_next(request)
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):  # type: ignore[no-untyped-def]
