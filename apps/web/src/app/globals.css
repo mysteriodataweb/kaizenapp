@@ -1,0 +1,102 @@
+@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource-variable/inter/index.css";
+@import "tailwindcss";
+
+/* ==========================================================================
+   Design system — Neo-Brutalism
+   Blanc, noir profond, jaune vif réservé aux actions et à l'emphase.
+   ========================================================================== */
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #111111;
+  --color-ink-soft: #3a3a3a;
+  --color-muted: #f4f4ef;
+  --color-line: #111111;
+  --color-accent: #ffc400;
+  --color-accent-strong: #f0b400;
+  --color-accent-soft: #fff4c7;
+  --color-success: #17713a;
+  --color-success-soft: #dcf3e3;
+  --color-danger: #b42318;
+  --color-danger-soft: #fde4e1;
+  --color-info: #1f4fd1;
+  --color-info-soft: #e1e9ff;
+
+  --font-display: "Archivo Variable", "Arial Narrow", system-ui, sans-serif;
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --shadow-brutal: 4px 4px 0 0 #111111;
+  --shadow-brutal-sm: 2px 2px 0 0 #111111;
+  --shadow-brutal-lg: 6px 6px 0 0 #111111;
+
+  --radius-brutal: 4px;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    font-stretch: 75%;
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-ink);
+  }
+  /* Focus toujours visible et contrasté (navigation clavier). */
+  :focus-visible {
+    outline: 3px solid var(--color-ink);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px var(--color-accent);
+  }
+  dialog::backdrop {
+    background: rgb(17 17 17 / 0.55);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .brutal-card {
+    background: var(--color-paper);
+    border: 2px solid var(--color-line);
+    border-radius: var(--radius-brutal);
+    box-shadow: var(--shadow-brutal);
+  }
+  .brutal-press {
+    transition: transform 80ms ease, box-shadow 80ms ease;
+  }
+  .brutal-press:hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-brutal-lg);
+  }
+  .brutal-press:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 0 var(--color-ink);
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #ececE6 25%, #f7f7f2 50%, #ececE6 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite linear;
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+}

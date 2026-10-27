@@ -22,7 +22,7 @@ from typing import Any, Literal
 from app.core.text import contains_phrase, normalize_text
 from app.workers.matching.vocabulary import LANGUAGE_NAMES_FR, RELATED, concept_terms, concepts_for
 
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.0.1"
 CEFR_ORDER = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6, "NATIVE": 7}
 LEVEL_LABELS = {
     "secondary": "secondaire",
@@ -345,7 +345,10 @@ def _skills(p: ProfileData, o: OpportunityData, weight: float) -> Criterion:
     matched = [s for s in skills if contains_phrase(text, s)]
     if matched:
         # Les annonces de master détaillent rarement les compétences : chaque correspondance pèse plus.
-        value = min(1.0, len(matched) / 3) if o.type == "internship" else min(1.0, 0.5 + 0.25 * len(matched))
+        # Une compétence retrouvée compte au moins comme une correspondance partielle.
+        value = (
+            min(1.0, 0.4 + 0.2 * (len(matched) - 1)) if o.type == "internship" else min(1.0, 0.5 + 0.25 * len(matched))
+        )
         detail = "Compétences retrouvées dans l'annonce : " + ", ".join(matched[:8])
         if p.experiences:
             detail += f" ({len(p.experiences)} expérience(s) déclarée(s))."

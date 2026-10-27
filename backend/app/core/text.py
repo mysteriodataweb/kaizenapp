@@ -12,6 +12,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 _PUNCT = re.compile(r"[^\w\s+#./-]", re.UNICODE)
 _SPACES = re.compile(r"\s+")
 _TAGS = re.compile(r"<[^>]+>")
+_INLINE_TAGS = re.compile(r"(?i)</?(strong|b|em|i|u|span|a|small|code|abbr|mark|sup|sub)(\s[^>]*)?>")
 
 TRACKING_PARAMS = {
     "utm_source",
@@ -52,6 +53,7 @@ def html_to_text(value: str | None) -> str:
 
     text = html.unescape(value)
     text = re.sub(r"(?i)<\s*(br|/p|/li|/h\d|/div)\s*/?>", "\n", text)
+    text = _INLINE_TAGS.sub("", text)
     text = _TAGS.sub(" ", text)
     text = html.unescape(text)
     lines = [_SPACES.sub(" ", line).strip() for line in text.splitlines()]
