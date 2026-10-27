@@ -3,6 +3,8 @@
   "private": true,
   "description": "Recherche, matching explicable et suivi des candidatures (stages & bourses de master).",
   "scripts": {
+    "build": "npm --prefix apps/web run build",
+    "start": "npm --prefix apps/web run start",
     "web:dev": "npm --prefix apps/web run dev",
     "web:build": "npm --prefix apps/web run build",
     "web:lint": "npm --prefix apps/web run lint",
@@ -13,5 +15,9 @@
     "api:test": "cd backend && .venv/bin/pytest",
     "api:lint": "cd backend && .venv/bin/ruff check app tests && .venv/bin/ruff format --check app tests",
     "api:migrate": "cd backend && .venv/bin/alembic upgrade head"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.5",
+    "@neon/env": "^1.6.6"
   }
 }

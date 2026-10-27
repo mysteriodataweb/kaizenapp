@@ -8,7 +8,7 @@ Local : `backend/.env` (lu automatiquement) et `apps/web/.env.local`.
 | Variable | Obligatoire | Usage | Exemple / valeur |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | **oui** | Connexion Neon (chaîne **pooled**, `-pooler` dans l'hôte), `postgres://`/`postgresql://` acceptés | `postgresql://user:***@ep-xxx-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require` |
-| `DATABASE_MIGRATION_URL` | recommandé | Connexion **directe** Neon pour Alembic | idem sans `-pooler` |
+| `DATABASE_MIGRATION_URL` (ou `DATABASE_URL_UNPOOLED`) | recommandé | Connexion **directe** Neon pour Alembic ; `DATABASE_URL_UNPOOLED` est le nom écrit par `neon deploy` / l'intégration Neon | idem sans `-pooler` |
 | `APP_ENV` | oui | `production` active les contrôles stricts et masque /docs | `production` |
 | `SECRET_KEY` | **oui** (≥ 32 car. en prod) | Empreintes HMAC (limitation de débit par IP) | générée par Render (`generateValue`) |
 | `FRONTEND_URL` | oui | Liens dans les e-mails (réinitialisation, analyses) | `https://opportunity-intelligence.vercel.app` |

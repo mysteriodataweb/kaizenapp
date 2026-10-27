@@ -18,6 +18,8 @@ Le code est sur GitHub (`mysteriodataweb/kaizenapp`). Fusionnez la branche de tr
 2. **Connect** → copier deux chaînes :
    - **Pooled connection** (hôte contenant `-pooler`) → `DATABASE_URL`
    - **Direct connection** → `DATABASE_MIGRATION_URL`
+   (`DATABASE_URL_UNPOOLED` est accepté sous ce nom). En local, `neon deploy` (config `neon.ts`) écrit ces deux
+   variables dans `.env.local` à la racine, lu automatiquement par le backend.
 3. Ne collez ces chaînes **que** dans le groupe d'environnement Render (jamais dans Git ni dans Vercel).
 
 Plan gratuit Neon : suffisant pour un usage personnel ; le calcul se suspend après inactivité (géré par l'API).
