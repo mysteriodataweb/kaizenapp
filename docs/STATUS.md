@@ -52,6 +52,7 @@ extérieur) · **NOT TESTED**.
 | Critère | Statut | Commentaire |
 | --- | --- | --- |
 | Dépôt GitHub accessible | PASS | Branche `claude/magical-sagan-50inw2` poussée sur `mysteriodataweb/kaizenapp` |
+| Intégration continue | PASS | GitHub Actions run #1 (commit `44d5070`) : Backend, Frontend et End-to-end réussis |
 | Frontend Vercel avec URL vérifiée | BLOCKED | Projet à créer (racine `apps/web`) — voir DEPLOYMENT.md §3 |
 | Backend Render avec URL vérifiée | BLOCKED | Blueprint `render.yaml` prêt — voir DEPLOYMENT.md §2 |
 | Neon accessible depuis le backend | BLOCKED | Projet Neon à créer ; connexion compatible pooler testée en local (PostgreSQL 16) |

@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Request, status
 
 from app.api.deps import Auth, CurrentUser, DbSession, client_ip_key
 from app.core.config import get_settings
+from app.core.security import hash_token
 from app.db.session import session_scope
 from app.models import User
 from app.schemas.auth import (
@@ -83,7 +84,7 @@ def _send_reset_email(user_id, token: str) -> None:  # type: ignore[no-untyped-d
             db,
             user,
             kind="password_reset",
-            dedup_key=f"reset:{token[:16]}",
+            dedup_key=f"reset:{hash_token(token)[:24]}",
             subject="[OI] Réinitialisation du mot de passe",
             html=html,
             text=text,
