@@ -18,7 +18,9 @@ from app.core.timeutil import utcnow
 from app.db.locks import LockNotAcquired, job_lock
 from app.db.session import session_scope
 from app.models import IngestionRun, Opportunity, Source, User
+from app.schemas.auth import AdminUserOut, AdminUserUpdate
 from app.schemas.misc import IngestionRunOut, SourceOut, SourceTestOut, SourceUpdate
+from app.services import auth as auth_service
 from app.services import matching
 from app.workers.connectors.registry import CONNECTORS
 from app.workers.ingestion import dry_run_source
@@ -153,3 +155,24 @@ def run_check_deadlines(_: AdminUser, db: DbSession) -> dict[str, Any]:
 @router.post("/jobs/recompute-matches")
 def run_recompute(_: AdminUser, db: DbSession, force: bool = False) -> dict[str, Any]:
     return {"recomputed": matching.recompute_all(db, force=force)}
+
+
+@router.get("/users", response_model=list[AdminUserOut], summary="Comptes (inscriptions, confirmation, activité)")
+def list_users(_: AdminUser, db: DbSession, limit: int = 200) -> list[AdminUserOut]:
+    rows = db.scalars(select(User).order_by(User.created_at.desc()).limit(min(max(limit, 1), 500))).all()
+    return [AdminUserOut.model_validate(u) for u in rows]
+
+
+@router.patch("/users/{user_id}", response_model=AdminUserOut, summary="Active ou désactive un compte")
+def update_user(user_id: uuid.UUID, data: AdminUserUpdate, admin: AdminUser, db: DbSession) -> AdminUserOut:
+    target = db.get(User, user_id)
+    if target is None:
+        raise NotFound("Compte introuvable.")
+    if target.id == admin.id:
+        raise Conflict("Vous ne pouvez pas désactiver votre propre compte.", code="self_update")
+    target.is_active = data.is_active
+    if not data.is_active:
+        auth_service.revoke_all_sessions(db, target.id)
+    db.commit()
+    logger.info("user %s by admin", "enabled" if data.is_active else "disabled")
+    return AdminUserOut.model_validate(target)

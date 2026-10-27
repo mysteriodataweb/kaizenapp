@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str | None = None
     bootstrap_admin_password: str | None = Field(default=None, repr=False)
 
+    # Inscription publique (désactivée par défaut) : adresse e-mail confirmée obligatoire avant la connexion.
+    allow_registration: bool = False
+    email_verification_ttl_hours: int = 48
+    registration_max_per_ip_per_hour: int = 5
+    registration_max_per_hour: int = 30
+
     resend_api_key: str | None = Field(default=None, repr=False)
     email_from: str | None = None
     alert_recipient: str | None = None
@@ -92,6 +98,11 @@ class Settings(BaseSettings):
     @property
     def email_enabled(self) -> bool:
         return bool(self.resend_api_key and self.email_from)
+
+    @property
+    def registration_open(self) -> bool:
+        # En production, sans e-mail réel, personne ne pourrait confirmer son adresse : inscriptions fermées.
+        return self.allow_registration and (self.email_enabled or not self.is_production)
 
     @property
     def ai_enabled(self) -> bool:

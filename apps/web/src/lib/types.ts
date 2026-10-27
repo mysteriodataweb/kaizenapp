@@ -37,6 +37,21 @@ export interface User {
   previous_seen_at: string | null;
 }
 
+export interface AuthConfig {
+  registration_open: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  display_name: string | null;
+  is_admin: boolean;
+  is_active: boolean;
+  email_verified_at: string | null;
+  created_at: string;
+  last_login_at: string | null;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;

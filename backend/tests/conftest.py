@@ -26,6 +26,7 @@ os.environ.update(
         "AI_API_KEY": "",
         "ALERT_RECIPIENT": "",
         "EMAIL_ALLOWED_RECIPIENTS": "",
+        "ALLOW_REGISTRATION": "false",
     }
 )
 

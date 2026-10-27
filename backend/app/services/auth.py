@@ -1,7 +1,8 @@
 """Authentification locale : Argon2id + sessions opaques côté serveur.
 
-Pas d'inscription publique : le compte administrateur est créé par la CLI
-(`python -m app.cli create-admin`) ou par l'amorçage unique `bootstrap-admin`.
+Le compte administrateur est créé par la CLI (`python -m app.cli create-admin`) ou par l'amorçage unique
+`bootstrap-admin`. L'inscription publique est désactivée par défaut (`ALLOW_REGISTRATION`) ; lorsqu'elle est
+ouverte, l'adresse e-mail doit être confirmée avant la première connexion et avant tout envoi d'alerte.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import AppError, TooManyRequests, Unauthorized
+from app.core.errors import AppError, Conflict, Forbidden, TooManyRequests, Unauthorized
 from app.core.logging import log_event
 from app.core.security import (
     hash_password,
@@ -25,8 +26,9 @@ from app.core.security import (
     verify_password,
 )
 from app.core.timeutil import utcnow
-from app.models import AuthAttempt, AuthSession, PasswordResetToken, User
+from app.models import AuthAttempt, AuthSession, Document, EmailVerificationToken, PasswordResetToken, User
 from app.models.notification import NotificationPreference
+from app.services.storage import get_storage
 
 logger = logging.getLogger("app.auth")
 
@@ -35,6 +37,9 @@ MAX_FAILURES_PER_IP = 20
 FAILURE_WINDOW = timedelta(minutes=15)
 VISIT_GAP = timedelta(minutes=30)
 TOUCH_INTERVAL = timedelta(minutes=5)
+REGISTRATION_WINDOW = timedelta(hours=1)
+REGISTRATION_GLOBAL_KEY = "register:*"
+MAX_VERIFICATION_EMAILS_PER_HOUR = 3
 
 
 @dataclass
@@ -42,6 +47,14 @@ class LoginResult:
     token: str
     session: AuthSession
     user: User
+
+
+@dataclass
+class RegistrationResult:
+    user: User
+    # Jeton de confirmation à envoyer ; None si l'adresse appartient déjà à un compte confirmé
+    # (on prévient alors le titulaire sans rien révéler au demandeur).
+    verification_token: str | None
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
@@ -55,6 +68,18 @@ def _recent_failures(db: Session, key: str) -> int:
             select(func.count())
             .select_from(AuthAttempt)
             .where(AuthAttempt.key == key, AuthAttempt.success.is_(False), AuthAttempt.attempted_at >= since)
+        )
+        or 0
+    )
+
+
+def _recent_attempts(db: Session, key: str, window: timedelta) -> int:
+    since = utcnow() - window
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(AuthAttempt)
+            .where(AuthAttempt.key == key, AuthAttempt.attempted_at >= since)
         )
         or 0
     )
@@ -77,6 +102,11 @@ def login(db: Session, email: str, password: str, ip_key: str, user_agent: str |
         _record_attempt(db, ip_key, False)
         db.commit()
         raise Unauthorized("Identifiants invalides.", code="invalid_credentials")
+    if user.email_verified_at is None:
+        raise Forbidden(
+            "Adresse e-mail non confirmée : cliquez sur le lien reçu par e-mail ou demandez un nouvel envoi.",
+            code="email_not_verified",
+        )
 
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(password)
@@ -200,6 +230,8 @@ def confirm_password_reset(db: Session, token: str, new_password: str) -> User:
     _validate_new_password(new_password, user.email)
     user.password_hash = hash_password(new_password)
     user.password_changed_at = utcnow()
+    if user.email_verified_at is None:  # le lien reçu prouve la possession de l'adresse
+        user.email_verified_at = utcnow()
     row.used_at = utcnow()
     revoke_all_sessions(db, user.id)
     db.commit()
@@ -207,26 +239,139 @@ def confirm_password_reset(db: Session, token: str, new_password: str) -> User:
 
 
 def create_user(
-    db: Session, email: str, password: str, *, is_admin: bool = False, display_name: str | None = None
+    db: Session,
+    email: str,
+    password: str,
+    *,
+    is_admin: bool = False,
+    display_name: str | None = None,
+    email_verified: bool = True,
 ) -> User:
     email = email.strip()
     if get_user_by_email(db, email):
         raise AppError("Un compte existe déjà pour cette adresse.", code="user_exists", status_code=409)
     _validate_new_password(password, email)
     settings = get_settings()
+    now = utcnow()
     user = User(
         email=email,
         password_hash=hash_password(password),
         is_admin=is_admin,
         display_name=display_name,
         timezone=settings.default_timezone,
-        password_changed_at=utcnow(),
+        password_changed_at=now,
+        email_verified_at=now if email_verified else None,
     )
     db.add(user)
     db.flush()
     db.add(NotificationPreference(user_id=user.id, email=email))
     db.commit()
     return user
+
+
+def register(
+    db: Session, email: str, password: str, display_name: str | None, ip_key: str
+) -> RegistrationResult | None:
+    """Inscription publique. La réponse HTTP est identique que l'adresse soit libre ou non."""
+    settings = get_settings()
+    if not settings.registration_open:
+        raise Forbidden("Les inscriptions sont fermées.", code="registration_closed")
+    ip_attempt_key = "register:" + ip_key
+    if (
+        _recent_attempts(db, ip_attempt_key, REGISTRATION_WINDOW) >= settings.registration_max_per_ip_per_hour
+        or _recent_attempts(db, REGISTRATION_GLOBAL_KEY, REGISTRATION_WINDOW) >= settings.registration_max_per_hour
+    ):
+        log_event(logger, "registration rate limited", logging.WARNING)
+        raise TooManyRequests("Trop d'inscriptions récentes. Réessayez plus tard.")
+    email = email.strip()
+    _validate_new_password(password, email)
+    _record_attempt(db, ip_attempt_key, True)
+    _record_attempt(db, REGISTRATION_GLOBAL_KEY, True)
+    existing = get_user_by_email(db, email)
+    if existing is not None:
+        db.commit()
+        if not existing.is_active:
+            return None
+        if existing.email_verified_at is None:
+            token = create_email_verification(db, existing)
+            return RegistrationResult(existing, token) if token else None
+        return RegistrationResult(existing, None)
+    user = create_user(db, email, password, display_name=display_name, email_verified=False)
+    log_event(logger, "user registered", user_id=str(user.id))
+    return RegistrationResult(user, create_email_verification(db, user))
+
+
+def create_email_verification(db: Session, user: User) -> str | None:
+    """Crée un jeton de confirmation (3 envois par heure au plus). None si la limite est atteinte."""
+    recent = db.scalar(
+        select(func.count())
+        .select_from(EmailVerificationToken)
+        .where(
+            EmailVerificationToken.user_id == user.id,
+            EmailVerificationToken.created_at >= utcnow() - timedelta(hours=1),
+        )
+    )
+    if (recent or 0) >= MAX_VERIFICATION_EMAILS_PER_HOUR:
+        return None
+    token = new_token()
+    db.add(
+        EmailVerificationToken(
+            user_id=user.id,
+            token_hash=hash_token(token),
+            expires_at=utcnow() + timedelta(hours=get_settings().email_verification_ttl_hours),
+        )
+    )
+    db.commit()
+    return token
+
+
+def resend_verification(db: Session, email: str) -> tuple[User, str] | None:
+    user = get_user_by_email(db, email)
+    if user is None or not user.is_active or user.email_verified_at is not None:
+        return None
+    token = create_email_verification(db, user)
+    return (user, token) if token else None
+
+
+def confirm_email(db: Session, token: str) -> User:
+    row = db.scalar(select(EmailVerificationToken).where(EmailVerificationToken.token_hash == hash_token(token)))
+    if row is None or row.used_at is not None or row.expires_at <= utcnow():
+        raise AppError("Lien de confirmation invalide ou expiré.", code="invalid_verification_token")
+    user = db.get(User, row.user_id)
+    if user is None or not user.is_active:
+        raise AppError("Lien de confirmation invalide ou expiré.", code="invalid_verification_token")
+    now = utcnow()
+    if user.email_verified_at is None:
+        user.email_verified_at = now
+    row.used_at = now
+    db.commit()
+    log_event(logger, "email verified", user_id=str(user.id))
+    return user
+
+
+def delete_account(db: Session, user: User, password: str) -> None:
+    """Suppression définitive du compte et de toutes ses données (cascade SQL + fichiers stockés)."""
+    if not verify_password(user.password_hash, password):
+        raise AppError("Mot de passe incorrect.", code="invalid_password", status_code=400)
+    if user.is_admin:
+        other_admins = db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.is_admin.is_(True), User.is_active.is_(True), User.id != user.id)
+        )
+        if not other_admins:
+            raise Conflict("Le dernier compte administrateur ne peut pas être supprimé.", code="last_admin")
+    keys = db.scalars(select(Document.storage_key).where(Document.user_id == user.id)).all()
+    user_id = user.id
+    db.execute(delete(User).where(User.id == user_id))
+    db.commit()
+    storage = get_storage()
+    for key in keys:
+        try:
+            storage.delete(key)
+        except Exception:  # noqa: BLE001 - la base est déjà nettoyée ; on journalise sans interrompre
+            log_event(logger, "stored file not deleted", logging.WARNING, user_id=str(user_id))
+    log_event(logger, "account deleted", user_id=str(user_id))
 
 
 def cleanup_auth_tables(db: Session) -> dict[str, int]:
@@ -238,5 +383,8 @@ def cleanup_auth_tables(db: Session) -> dict[str, int]:
         )
     ).rowcount
     r = db.execute(delete(PasswordResetToken).where(PasswordResetToken.expires_at < now - timedelta(days=1))).rowcount
+    v = db.execute(
+        delete(EmailVerificationToken).where(EmailVerificationToken.expires_at < now - timedelta(days=1))
+    ).rowcount
     db.commit()
-    return {"auth_attempts": a or 0, "sessions": s or 0, "reset_tokens": r or 0}
+    return {"auth_attempts": a or 0, "sessions": s or 0, "reset_tokens": r or 0, "verification_tokens": v or 0}

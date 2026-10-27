@@ -18,8 +18,11 @@ Local : `backend/.env` (lu automatiquement) et `apps/web/.env.local`.
 | `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` | une fois | Crée le compte admin au démarrage **si aucun compte n'existe** ; supprimer le mot de passe ensuite | — |
 | `RESEND_API_KEY` | non | E-mails réels ; absent ⇒ **mode simulation** | `re_…` |
 | `EMAIL_FROM` | avec Resend | Expéditeur d'un domaine **vérifié** dans Resend | `Opportunity Intelligence <alertes@votre-domaine.fr>` |
-| `ALERT_RECIPIENT` | non | Adresse autorisée supplémentaire pour les alertes | — |
-| `EMAIL_ALLOWED_RECIPIENTS` | non | Autres adresses autorisées (virgules) | — |
+| `ALERT_RECIPIENT` | non | Adresse supplémentaire autorisée pour les alertes **de l'administrateur** | — |
+| `EMAIL_ALLOWED_RECIPIENTS` | non | Autres adresses autorisées pour l'administrateur (virgules) | — |
+| `ALLOW_REGISTRATION` | non | `true` ouvre l'inscription publique (adresse confirmée obligatoire). En production, exige Resend configuré | `false` |
+| `EMAIL_VERIFICATION_TTL_HOURS` | non | Validité du lien de confirmation | `48` |
+| `REGISTRATION_MAX_PER_IP_PER_HOUR` / `REGISTRATION_MAX_PER_HOUR` | non | Plafonds d'inscription (par IP / global) | `5` / `30` |
 | `AI_PROVIDER` / `AI_API_KEY` / `AI_MODEL` | non | Assistant de rédaction ; `anthropic` ; modèle par défaut `claude-opus-5-5` | — |
 | `STORAGE_PROVIDER` | non | `s3`, `local` (dev — disque **éphémère** sur Render) ou `none` (téléversement désactivé) | `none` par défaut sur Render |
 | `STORAGE_BUCKET`, `STORAGE_ENDPOINT_URL`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | avec `s3` | Bucket **privé** S3-compatible (ex. Cloudflare R2 : endpoint `https://<compte>.r2.cloudflarestorage.com`, région `auto`) | — |

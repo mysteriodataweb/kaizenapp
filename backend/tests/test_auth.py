@@ -44,11 +44,12 @@ def test_login_rate_limited_after_failures(client, user):
     assert resp.status_code == 429
 
 
-def test_no_public_registration(client):
-    assert client.post("/api/v1/auth/register", json={"email": "a@b.co", "password": PASSWORD}).status_code in (
-        404,
-        405,
-    )
+def test_registration_closed_by_default(client, outbox):
+    assert client.get("/api/v1/auth/config").json() == {"registration_open": False}
+    resp = client.post("/api/v1/auth/register", json={"email": "a@example.com", "password": PASSWORD})
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "registration_closed"
+    assert outbox.outbox == []
 
 
 def test_private_routes_require_auth(client):

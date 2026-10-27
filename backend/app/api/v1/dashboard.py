@@ -106,13 +106,18 @@ def dashboard(user: CurrentUser, db: DbSession) -> DashboardOut:
         .order_by(NotificationLog.created_at.desc())
         .limit(5)
     ).all()
-    err_runs = db.execute(
-        select(IngestionRun, Source.name)
-        .outerjoin(Source, Source.id == IngestionRun.source_id)
-        .where(IngestionRun.status.in_(("failed", "partial")), IngestionRun.started_at >= now - timedelta(days=7))
-        .order_by(IngestionRun.started_at.desc())
-        .limit(5)
-    ).all()
+    # Détails techniques des collectes : réservés à l'administrateur.
+    err_runs = (
+        db.execute(
+            select(IngestionRun, Source.name)
+            .outerjoin(Source, Source.id == IngestionRun.source_id)
+            .where(IngestionRun.status.in_(("failed", "partial")), IngestionRun.started_at >= now - timedelta(days=7))
+            .order_by(IngestionRun.started_at.desc())
+            .limit(5)
+        ).all()
+        if user.is_admin
+        else []
+    )
     err_mails = db.scalars(
         select(NotificationLog)
         .where(NotificationLog.user_id == user.id, NotificationLog.status == "failed")

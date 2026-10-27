@@ -26,6 +26,7 @@ envVarGroups:
       #   FRONTEND_URL            (URL Vercel de production)
       #   CORS_ORIGINS            (URL Vercel de production)
       #   RESEND_API_KEY, EMAIL_FROM, ALERT_RECIPIENT   (facultatif : sinon mode simulation)
+      #   ALLOW_REGISTRATION=true                       (facultatif : inscriptions publiques, exige Resend)
       #   AI_PROVIDER, AI_API_KEY                       (facultatif)
       #   STORAGE_PROVIDER=s3 + STORAGE_BUCKET/ENDPOINT_URL/ACCESS_KEY/SECRET_KEY (facultatif)
       #   BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD (une seule fois, puis supprimer le mot de passe)

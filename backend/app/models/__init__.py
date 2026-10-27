@@ -6,7 +6,7 @@ from app.models.notification import NotificationLog, NotificationPreference
 from app.models.opportunity import Favorite, Opportunity, OpportunitySource, Source
 from app.models.ops import IngestionRun, JobLock
 from app.models.profile import Profile
-from app.models.user import AuthAttempt, AuthSession, PasswordResetToken, User
+from app.models.user import AuthAttempt, AuthSession, EmailVerificationToken, PasswordResetToken, User
 
 __all__ = [
     "Application",
@@ -16,6 +16,7 @@ __all__ = [
     "AuthSession",
     "Base",
     "Document",
+    "EmailVerificationToken",
     "Favorite",
     "IngestionRun",
     "JobLock",
