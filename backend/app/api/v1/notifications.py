@@ -40,9 +40,9 @@ def get_preferences(user: CurrentUser, db: DbSession) -> NotificationPrefsOut:
 @router.put("/preferences", response_model=NotificationPrefsOut)
 def put_preferences(data: NotificationPrefsIn, user: CurrentUser, db: DbSession) -> NotificationPrefsOut:
     if data.email and not notif.recipient_allowed(data.email, user):
+        hint = " ou une adresse listée dans ALERT_RECIPIENT / EMAIL_ALLOWED_RECIPIENTS" if user.is_admin else ""
         raise AppError(
-            "Adresse non autorisée : utilisez l'e-mail de votre compte ou une adresse listée dans "
-            "ALERT_RECIPIENT / EMAIL_ALLOWED_RECIPIENTS.",
+            f"Adresse non autorisée : utilisez l'e-mail de votre compte{hint}.",
             code="recipient_not_allowed",
             status_code=422,
         )

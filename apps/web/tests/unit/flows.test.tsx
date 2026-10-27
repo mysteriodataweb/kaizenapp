@@ -25,19 +25,29 @@ const app: Application = {
   estimated_prep_hours: null, created_at: "", updated_at: "", urgency: null, eligibility: null, score: null, documents: [], open_tasks: 0,
 };
 
+/** Réponses de connexion successives ; la configuration publique (inscriptions) est servie à part. */
+function mockLogin(...responses: Response[]) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    if (String(input).includes("auth/config")) return new Response(JSON.stringify({ registration_open: false }), { status: 200 });
+    return responses.shift()!;
+  });
+}
+const loginCalls = (spy: ReturnType<typeof mockLogin>) => spy.mock.calls.filter((c) => c[0] === "/api/auth/login");
+
 describe("connexion", () => {
   it("valide les champs avant tout appel réseau", async () => {
-    const spy = vi.spyOn(globalThis, "fetch");
+    const spy = mockLogin();
     render(<LoginForm />);
     await userEvent.click(screen.getByRole("button", { name: "Se connecter" }));
     expect(await screen.findByText("Adresse e-mail invalide.")).toBeInTheDocument();
-    expect(spy).not.toHaveBeenCalled();
+    expect(loginCalls(spy)).toHaveLength(0);
   });
 
   it("affiche l'erreur du serveur puis redirige en cas de succès", async () => {
-    const spy = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: "invalid_credentials", message: "Identifiants invalides." } }), { status: 401 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ user: {} }), { status: 200 }));
+    const spy = mockLogin(
+      new Response(JSON.stringify({ error: { code: "invalid_credentials", message: "Identifiants invalides." } }), { status: 401 }),
+      new Response(JSON.stringify({ user: {} }), { status: 200 }),
+    );
     render(<LoginForm />);
     await userEvent.type(screen.getByLabelText(/Adresse e-mail/), "moi@example.com");
     await userEvent.type(screen.getByLabelText(/Mot de passe/), "mauvais");
@@ -45,7 +55,7 @@ describe("connexion", () => {
     expect(await screen.findByText("Identifiants invalides.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Se connecter" }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
-    expect(spy.mock.calls[0]![0]).toBe("/api/auth/login");
+    expect(loginCalls(spy)).toHaveLength(2);
   });
 });
 

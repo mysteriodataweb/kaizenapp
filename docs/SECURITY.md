@@ -2,9 +2,20 @@
 
 ## Authentification et sessions
 
-- Aucune inscription publique ; compte créé par CLI (`create-admin`, mot de passe saisi via `getpass` ou
-  `ADMIN_PASSWORD` à l'exécution) ou amorçage unique (`bootstrap-admin`, uniquement si aucun compte n'existe).
-  Aucun mot de passe par défaut n'existe dans le code.
+- Compte administrateur créé par CLI (`create-admin`, mot de passe saisi via `getpass` ou `ADMIN_PASSWORD` à
+  l'exécution) ou amorçage unique (`bootstrap-admin`, uniquement si aucun compte n'existe). Aucun mot de passe par
+  défaut n'existe dans le code.
+- Inscription publique **fermée par défaut** (`ALLOW_REGISTRATION=false`). Ouverte, elle impose :
+  - une **adresse e-mail confirmée** avant la première connexion (jeton haché, 48 h, usage unique, 3 envois / heure ;
+    confirmation par un clic sur la page, pas au simple chargement du lien, pour neutraliser les scanners de messagerie) ;
+  - des **réponses identiques** que l'adresse soit libre, en attente ou déjà utilisée (le titulaire d'un compte
+    existant est prévenu par e-mail ; son mot de passe ne change jamais) ;
+  - une limitation : 5 inscriptions / heure par IP et 30 / heure au total (plafond global, indépendant des en-têtes) ;
+  - en production, des **e-mails réels** (Resend) : sans fournisseur, les inscriptions restent fermées ;
+  - des comptes **membres** (jamais administrateurs) : sources de veille, collectes et utilisateurs restent réservés à
+    l'administrateur, qui peut désactiver un compte (sessions révoquées immédiatement) ;
+  - la **suppression de compte** par l'utilisateur (mot de passe + saisie de confirmation) : cascade SQL sur toutes ses
+    données et effacement des fichiers stockés. Le dernier administrateur ne peut pas se supprimer.
 - Mots de passe : **Argon2id** (argon2-cffi), ré-hachage automatique si les paramètres évoluent ; politique :
   ≥ 12 caractères, pas trop répétitif, ne contient pas l'identifiant ; temps de réponse égalisé pour les comptes inexistants.
 - Sessions : jeton aléatoire 256 bits ; **seul son SHA-256 est stocké** ; expiration 14 jours ; révocation à la
@@ -52,11 +63,16 @@
 
 ## E-mails
 
-- Destinataires restreints à l'adresse du compte et aux adresses explicitement autorisées côté serveur.
+- Destinataires restreints à l'adresse **confirmée** du compte ; les adresses supplémentaires autorisées côté serveur
+  (`ALERT_RECIPIENT`, `EMAIL_ALLOWED_RECIPIENTS`) ne sont utilisables que par un administrateur.
 - E-mail de test sur confirmation explicite ; mode simulation sans clé Resend.
 
 ## Points d'attention / améliorations possibles
 
 - `script-src 'unsafe-inline'` reste nécessaire sans nonce (Next.js) ; un CSP à nonce est possible via `proxy.ts`.
 - La limitation par IP dépend de l'en-tête transmis par la passerelle ; la limitation par e-mail reste la protection principale.
-- Pas de 2FA (single user) : envisageable (TOTP) si l'application devient multi-utilisateur.
+- Pas de 2FA : envisageable (TOTP), recommandé pour le compte administrateur si les inscriptions sont ouvertes.
+- Pas de CAPTCHA : les plafonds d'inscription limitent l'abus ; un CAPTCHA respectueux (ex. Cloudflare Turnstile)
+  peut être ajouté si des inscriptions automatisées apparaissent.
+- Ouvrir le service à d'autres personnes implique des obligations (RGPD : information, mentions légales, durée de
+  conservation) qui relèvent de l'exploitant ; l'application fournit la suppression de compte et l'isolation des données.

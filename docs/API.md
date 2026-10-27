@@ -28,7 +28,14 @@ Documentation interactive OpenAPI en développement : `http://localhost:8000/doc
 | POST | `/auth/password-reset/request` | 202 identique que le compte existe ou non ; e-mail avec lien 30 min |
 | POST | `/auth/password-reset/confirm` | `{token, new_password}` ; usage unique, révoque toutes les sessions |
 
-Pas d'inscription publique : création par `python -m app.cli create-admin` ou amorçage `bootstrap-admin`.
+| GET | `/auth/config` | Public : `{registration_open}` |
+| POST | `/auth/register` | Public si `ALLOW_REGISTRATION` : `{email, password, display_name?}` → 202 identique dans tous les cas ; 403 `registration_closed`, 422 `weak_password`, 429 |
+| POST | `/auth/verify-email` | `{token}` ; usage unique, 48 h ; 400 `invalid_verification_token` |
+| POST | `/auth/verify-email/resend` | `{email}` → 202 identique que le compte existe ou non |
+| POST | `/auth/delete-account` | `{password}` ; suppression définitive (409 `last_admin` pour le dernier administrateur) |
+
+Connexion d'un compte non confirmé : 403 `email_not_verified` (uniquement si le mot de passe est correct).
+Comptes administrateurs : `python -m app.cli create-admin` ou amorçage `bootstrap-admin`.
 
 ## Profil
 
@@ -78,7 +85,7 @@ Pas d'inscription publique : création par `python -m app.cli create-admin` ou a
 
 | Méthode | Chemin | Description |
 | --- | --- | --- |
-| GET / PUT | `/notifications/preferences` | Préférences ; l'adresse doit être celle du compte ou autorisée (`ALERT_RECIPIENT`, `EMAIL_ALLOWED_RECIPIENTS`) |
+| GET / PUT | `/notifications/preferences` | Préférences ; l'adresse doit être celle du compte (confirmée) ou, pour un administrateur, une adresse autorisée (`ALERT_RECIPIENT`, `EMAIL_ALLOWED_RECIPIENTS`) |
 | GET | `/notifications/logs?limit=` | Journal d'envoi |
 | GET | `/notifications/preview?kind=digest|new_matches|deadline` | Aperçu HTML/texte, rien n'est envoyé |
 | POST | `/notifications/test` | `{confirm: true}` obligatoire ; simulé sans Resend |
@@ -109,3 +116,5 @@ Pas d'inscription publique : création par `python -m app.cli create-admin` ou a
 | POST | `/admin/jobs/check-deadlines` | Rappels/tâches/modifications maintenant (dédupliqués) |
 | POST | `/admin/jobs/recompute-matches` | Recalcul global |
 | GET | `/admin/connectors` | Connecteurs disponibles |
+| GET | `/admin/users` | Comptes : rôle, adresse confirmée, actif, inscription, dernière connexion (jamais le hachage) |
+| PATCH | `/admin/users/{id}` | `{is_active}` ; la désactivation révoque les sessions ; 409 sur son propre compte |

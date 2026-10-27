@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,14 +19,21 @@ def normalize_database_url(url: str) -> str:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # `../.env` / `../.env.local` : variables écrites par `neon deploy` / `neon env pull` à la racine du dépôt ;
+    # `backend/.env` (lu en dernier) reste prioritaire. Les variables d'environnement priment toujours.
+    model_config = SettingsConfigDict(
+        env_file=("../.env", "../.env.local", ".env"), env_file_encoding="utf-8", extra="ignore"
+    )
 
     app_env: Literal["development", "test", "production"] = "development"
     app_name: str = "Opportunity Intelligence"
     log_level: str = "INFO"
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/oi_dev"
-    database_migration_url: str | None = None
+    # Connexion directe (sans PgBouncer) pour Alembic ; Neon la fournit sous le nom DATABASE_URL_UNPOOLED.
+    database_migration_url: str | None = Field(
+        default=None, validation_alias=AliasChoices("DATABASE_MIGRATION_URL", "DATABASE_URL_UNPOOLED")
+    )
     db_pool_size: int = 5
     db_max_overflow: int = 5
 
@@ -39,6 +46,12 @@ class Settings(BaseSettings):
 
     bootstrap_admin_email: str | None = None
     bootstrap_admin_password: str | None = Field(default=None, repr=False)
+
+    # Inscription publique (désactivée par défaut) : adresse e-mail confirmée obligatoire avant la connexion.
+    allow_registration: bool = False
+    email_verification_ttl_hours: int = 48
+    registration_max_per_ip_per_hour: int = 5
+    registration_max_per_hour: int = 30
 
     resend_api_key: str | None = Field(default=None, repr=False)
     email_from: str | None = None
@@ -85,6 +98,11 @@ class Settings(BaseSettings):
     @property
     def email_enabled(self) -> bool:
         return bool(self.resend_api_key and self.email_from)
+
+    @property
+    def registration_open(self) -> bool:
+        # En production, sans e-mail réel, personne ne pourrait confirmer son adresse : inscriptions fermées.
+        return self.allow_registration and (self.email_enabled or not self.is_production)
 
     @property
     def ai_enabled(self) -> bool:

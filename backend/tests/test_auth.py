@@ -44,11 +44,12 @@ def test_login_rate_limited_after_failures(client, user):
     assert resp.status_code == 429
 
 
-def test_no_public_registration(client):
-    assert client.post("/api/v1/auth/register", json={"email": "a@b.co", "password": PASSWORD}).status_code in (
-        404,
-        405,
-    )
+def test_registration_closed_by_default(client, outbox):
+    assert client.get("/api/v1/auth/config").json() == {"registration_open": False}
+    resp = client.post("/api/v1/auth/register", json={"email": "a@example.com", "password": PASSWORD})
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "registration_closed"
+    assert outbox.outbox == []
 
 
 def test_private_routes_require_auth(client):
@@ -162,3 +163,16 @@ def test_security_headers(client):
     assert resp.headers["x-content-type-options"] == "nosniff"
     assert resp.headers["x-request-id"]
     assert resp.headers["cache-control"] == "no-store"
+
+
+def test_neon_unpooled_url_is_used_for_migrations(monkeypatch):
+    from app.core.config import Settings
+
+    monkeypatch.delenv("DATABASE_MIGRATION_URL", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@ep-x-pooler.eu-central-1.aws.neon.tech/db?sslmode=require")
+    monkeypatch.setenv("DATABASE_URL_UNPOOLED", "postgresql://u:p@ep-x.eu-central-1.aws.neon.tech/db?sslmode=require")
+    s = Settings()
+    assert s.database_url.startswith("postgresql+psycopg://") and "-pooler" in s.database_url
+    assert s.database_migration_url == "postgresql+psycopg://u:p@ep-x.eu-central-1.aws.neon.tech/db?sslmode=require"
+    monkeypatch.setenv("DATABASE_MIGRATION_URL", "postgresql://u:p@direct.example/db")
+    assert Settings().database_migration_url == "postgresql+psycopg://u:p@direct.example/db"

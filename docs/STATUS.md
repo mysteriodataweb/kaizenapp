@@ -21,6 +21,9 @@ extérieur) · **NOT TESTED**.
 | Les documents sont privés | PASS (stockage local) / NOT TESTED (S3 réel) | `test_documents_are_private`, contrainte SQL propriétaire ; bucket S3 réel non disponible |
 | Les deadlines apparaissent dans le tableau de bord | PASS | `test_dashboard_and_calendar` |
 | Les préférences d'alertes sont modifiables | PASS | `test_preferences_api_rejects_unauthorized_recipient`, e2e alertes |
+| Inscription publique (désactivable) avec adresse confirmée | PASS (local) / NOT TESTED (production) | `test_registration.py`, e2e `registration.spec.ts` ; en production, nécessite Resend + domaine vérifié et `ALLOW_REGISTRATION=true` |
+| Suppression de compte par l'utilisateur | PASS | `test_delete_account_removes_all_data` (cascade SQL + fichiers) |
+| Modération des comptes par l'administrateur | PASS | `test_admin_lists_and_disables_users`, e2e page Utilisateurs |
 
 ## Automatisation
 
@@ -32,7 +35,7 @@ extérieur) · **NOT TESTED**.
 | Alertes dédupliquées | PASS | `test_dispatch_is_deduplicated`, rappels/changes « duplicate » |
 | Rappels sans fausses certitudes sur les dates non vérifiées | PASS | `test_no_reminder_for_unknown_deadline_and_flag_unverified` |
 | Fonctionne sans fournisseur IA | PASS | `test_assistant_disabled_without_key`, e2e (bannière « Fonction désactivée ») |
-| Envoi réel d'e-mails Resend | BLOCKED | Clé absente, `api.resend.com` injoignable ici ; client Resend testé contre un transport simulé |
+| Envoi réel d'e-mails Resend | BLOCKED | Clé absente, `api.resend.com` injoignable ici ; client Resend testé contre un transport simulé. Procédure : DEPLOYMENT.md §5 |
 
 ## Sécurité
 

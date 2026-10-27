@@ -122,6 +122,8 @@ class NotificationKind(StrEnum):
     CHANGE = "change"
     INGESTION_ERROR = "ingestion_error"
     PASSWORD_RESET = "password_reset"
+    EMAIL_VERIFICATION = "email_verification"
+    REGISTRATION_EXISTING = "registration_existing"
     TEST = "test"
 
 

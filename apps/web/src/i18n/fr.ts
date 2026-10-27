@@ -16,6 +16,7 @@ export const fr = {
     notifications: "Alertes",
     settings: "Paramètres",
     adminSources: "Sources de veille",
+    adminUsers: "Utilisateurs",
     logout: "Se déconnecter",
     menu: "Menu",
   },
@@ -79,6 +80,8 @@ export const fr = {
     change: "Modification",
     ingestion_error: "Erreur de collecte",
     password_reset: "Mot de passe",
+    email_verification: "Confirmation d'adresse",
+    registration_existing: "Tentative d'inscription",
     test: "Test",
   },
   notificationStatus: {

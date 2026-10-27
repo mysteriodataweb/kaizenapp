@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { login } from "./helpers";
 
-const PAGES = ["/dashboard", "/opportunities", "/matches", "/applications", "/calendar", "/documents", "/profile", "/notifications", "/settings"];
+const PAGES = ["/dashboard", "/opportunities", "/matches", "/applications", "/calendar", "/documents", "/profile", "/notifications", "/settings", "/admin/users"];
 
 test("mobile : menu compact et aucune page ne déborde horizontalement", async ({ page }) => {
   await login(page);

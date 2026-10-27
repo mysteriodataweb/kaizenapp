@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   UserRound,
+  Users,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -36,7 +37,9 @@ const NAV = [
 
 function NavLinks({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const items = isAdmin ? [...NAV, { href: "/admin/sources", label: t.nav.adminSources, icon: Radar }] : NAV;
+  const items = isAdmin
+    ? [...NAV, { href: "/admin/sources", label: t.nav.adminSources, icon: Radar }, { href: "/admin/users", label: t.nav.adminUsers, icon: Users }]
+    : NAV;
   return (
     <ul className="flex flex-col gap-1">
       {items.map(({ href, label, icon: Icon }) => {

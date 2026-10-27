@@ -11,7 +11,7 @@ des **alertes e-mail** — sans jamais envoyer une candidature à votre place.
 
 | Domaine | Ce qui est implémenté |
 | --- | --- |
-| Authentification | Compte unique créé par CLI/amorçage (pas d'inscription publique), Argon2id, sessions opaques hachées, limitation de débit, réinitialisation du mot de passe par e-mail, cookie httpOnly + contrôle d'origine (CSRF) |
+| Authentification | Compte admin créé par CLI/amorçage ; inscription publique **désactivable** (`ALLOW_REGISTRATION`, adresse e-mail confirmée obligatoire), Argon2id, sessions opaques hachées, limitation de débit, réinitialisation du mot de passe par e-mail, cookie httpOnly + contrôle d'origine (CSRF) |
 | Profil | Identité, nationalités, études, compétences, expériences, projets, engagements, langues (CECRL), préférences ; **import de CV PDF** avec écran de confirmation (rien n'est inventé ni enregistré automatiquement) |
 | Documents | Espace privé (PDF, DOCX, PNG, JPEG, texte), contrôle du type réel par signature binaire, versions, notes, association aux candidatures, téléchargement par URL signée (S3) ou flux authentifié |
 | Catalogue | Stages et bourses avec provenance, filtres serveur (type, pays, domaine, organisme, niveau, financement, échéance, éligibilité, score, statut), recherche plein texte, tri, pagination, favoris |

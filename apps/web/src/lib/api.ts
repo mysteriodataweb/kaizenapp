@@ -52,7 +52,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
     if ((err as Error).name === "AbortError") throw err;
     throw new ApiError(0, "network_error", t.common.networkError);
   }
-  if (response.status === 401 && typeof window !== "undefined" && !path.startsWith("auth/password-reset")) {
+  if (response.status === 401 && typeof window !== "undefined" && !isPublicAuthPath(path)) {
     const next = encodeURIComponent(window.location.pathname + window.location.search);
     // Rechargement complet volontaire : purge l'état client après expiration de session.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -67,6 +67,11 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
     throw new ApiError(response.status, err?.code ?? `http_${response.status}`, err?.message ?? t.common.error, err?.details);
   }
   return data as T;
+}
+
+/** Appels sans session : un 401 éventuel ne doit pas renvoyer vers la page de connexion. */
+function isPublicAuthPath(path: string): boolean {
+  return ["auth/config", "auth/register", "auth/verify-email", "auth/password-reset"].some((p) => path.startsWith(p));
 }
 
 function safeJson(text: string): unknown {

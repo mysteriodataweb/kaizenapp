@@ -5,7 +5,8 @@ Garanties :
   * la ligne de journal est validée AVANT l'appel au fournisseur (pas de double envoi en cas de crash,
     et clé d'idempotence Resend en complément) ;
   * aucun rappel n'est envoyé pour une date inconnue ; une date non vérifiée est signalée comme telle ;
-  * seuls le compte de l'utilisateur et les adresses autorisées peuvent recevoir des e-mails.
+  * seuls l'adresse confirmée du compte et, pour un administrateur, les adresses autorisées
+    (ALERT_RECIPIENT, EMAIL_ALLOWED_RECIPIENTS) peuvent recevoir des alertes.
 """
 
 from __future__ import annotations
@@ -62,7 +63,9 @@ def recipient_allowed(email: str | None, user: User) -> bool:
     if not email:
         return False
     email = email.strip().lower()
-    return email == user.email.lower() or email in get_settings().allowed_recipients
+    if email == user.email.lower():
+        return user.email_verified_at is not None
+    return user.is_admin and email in get_settings().allowed_recipients
 
 
 def effective_recipient(prefs: NotificationPreference, user: User) -> str | None:

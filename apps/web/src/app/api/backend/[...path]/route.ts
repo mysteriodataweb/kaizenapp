@@ -4,8 +4,16 @@ import { NextResponse } from "next/server";
 import { backendUrl, SESSION_COOKIE } from "@/lib/server/config";
 import { isSameOrigin, SAFE_METHODS } from "@/lib/server/csrf";
 
-/** Routes accessibles sans session (réinitialisation du mot de passe). */
-const PUBLIC_PATHS = new Set(["auth/password-reset/request", "auth/password-reset/confirm", "health"]);
+/** Routes accessibles sans session (inscription, confirmation d'adresse, réinitialisation du mot de passe). */
+const PUBLIC_PATHS = new Set([
+  "auth/config",
+  "auth/register",
+  "auth/verify-email",
+  "auth/verify-email/resend",
+  "auth/password-reset/request",
+  "auth/password-reset/confirm",
+  "health",
+]);
 /** Routes jamais relayées : la connexion passe par /api/auth/login pour ne pas exposer le jeton. */
 const BLOCKED_PATHS = new Set(["auth/login"]);
 

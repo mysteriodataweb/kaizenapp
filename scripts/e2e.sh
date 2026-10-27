@@ -14,7 +14,7 @@ trap cleanup EXIT
 
 cd "$ROOT/backend"
 DATABASE_URL="$E2E_DB_URL" STORAGE_LOCAL_DIR="$STORAGE" "$PY" -m tests.e2e_seed
-DATABASE_URL="$E2E_DB_URL" STORAGE_LOCAL_DIR="$STORAGE" CORS_ORIGINS="http://localhost:$WEB_PORT" \
+DATABASE_URL="$E2E_DB_URL" STORAGE_LOCAL_DIR="$STORAGE" ALLOW_REGISTRATION=true CORS_ORIGINS="http://localhost:$WEB_PORT" \
   FRONTEND_URL="http://localhost:$WEB_PORT" SECRET_KEY="e2e-local-secret-key-0123456789abcdef" \
   "$PY" -m uvicorn app.main:app --port "$API_PORT" >/tmp/oi-e2e-api.log 2>&1 &
 API_PID=$!

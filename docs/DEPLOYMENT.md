@@ -18,6 +18,8 @@ Le code est sur GitHub (`mysteriodataweb/kaizenapp`). Fusionnez la branche de tr
 2. **Connect** → copier deux chaînes :
    - **Pooled connection** (hôte contenant `-pooler`) → `DATABASE_URL`
    - **Direct connection** → `DATABASE_MIGRATION_URL`
+   (`DATABASE_URL_UNPOOLED` est accepté sous ce nom). En local, `neon deploy` (config `neon.ts`) écrit ces deux
+   variables dans `.env.local` à la racine, lu automatiquement par le backend.
 3. Ne collez ces chaînes **que** dans le groupe d'environnement Render (jamais dans Git ni dans Vercel).
 
 Plan gratuit Neon : suffisant pour un usage personnel ; le calcul se suspend après inactivité (géré par l'API).
@@ -36,7 +38,7 @@ Plan gratuit Neon : suffisant pour un usage personnel ; le calcul se suspend apr
    - `FRONTEND_URL` et `CORS_ORIGINS` : provisoirement `https://example.invalid`, à corriger à l'étape 4
 3. **Manual Deploy** du Web Service. Le démarrage exécute : `alembic upgrade head` → `seed-sources` →
    `bootstrap-admin` → `uvicorn`.
-4. Vérifier : `https://<service>.onrender.com/api/v1/health` doit renvoyer `"database": "ok"` et `"migration": "0001"`.
+4. Vérifier : `https://<service>.onrender.com/api/v1/health` doit renvoyer `"database": "ok"` et `"migration": "0002"`.
    Les logs (onglet **Logs**) sont en JSON.
 5. Retirer `BOOTSTRAP_ADMIN_PASSWORD` du groupe après la première connexion réussie (l'amorçage ne s'exécute de
    toute façon que si aucun compte n'existe).
@@ -64,14 +66,28 @@ pas de l'API : ils accèdent directement à la base.
 
 ## 5. E-mails (Resend)
 
-1. <https://resend.com> → **Domains** → ajouter et vérifier votre domaine (enregistrements DNS).
-2. **API Keys** → créer une clé « Sending access ».
-3. Render (groupe) : `RESEND_API_KEY`, `EMAIL_FROM` (adresse du domaine vérifié), éventuellement `ALERT_RECIPIENT`.
-   Redéployer l'API.
-4. Application → **Alertes** : la bannière « mode simulation » disparaît ; « E-mail de test » (confirmation requise).
-   Le journal affiche l'identifiant Resend du message.
+Prérequis : un **nom de domaine** dont vous gérez les DNS (chez votre registrar ou Cloudflare). Sans domaine vérifié,
+Resend n'envoie qu'à l'adresse de votre propre compte Resend : suffisant pour tester vos alertes, **pas** pour les
+e-mails d'inscription d'autres personnes.
 
-Sans domaine vérifié, Resend n'autorise que l'envoi vers l'adresse du compte Resend : gardez le mode simulation en attendant.
+1. <https://resend.com> → créer un compte → **Domains → Add Domain** : de préférence un sous-domaine dédié
+   (ex. `mail.votre-domaine.fr`), région la plus proche (ex. `eu-west-1`).
+2. Ajouter chez votre hébergeur DNS les enregistrements affichés par Resend (**MX** et **TXT/SPF** pour l'envoi,
+   **TXT/DKIM** `resend._domainkey`), puis **Verify DNS Records** : statut « Verified » (quelques minutes à quelques heures).
+   Facultatif mais recommandé : un enregistrement **DMARC** (`_dmarc`, ex. `v=DMARC1; p=none;`).
+3. **API Keys → Create API Key** : permission **Sending access**, limitée au domaine. La clé n'est affichée qu'une fois :
+   collez-la directement dans Render, nulle part ailleurs.
+4. Render → **Env Groups → opportunity-intelligence-shared** :
+   - `RESEND_API_KEY` = la clé (`re_…`)
+   - `EMAIL_FROM` = `Opportunity Intelligence <alertes@mail.votre-domaine.fr>` (adresse du domaine vérifié)
+   - `FRONTEND_URL` = URL Vercel de production (utilisée dans les liens des e-mails)
+   - facultatif : `ALERT_RECIPIENT` (adresse supplémentaire pour **vos** alertes d'administrateur)
+   puis **Manual Deploy**.
+5. Vérifier : `/api/v1/health` → `"email_mode": "resend"` ; application → **Alertes** : la bannière « mode simulation »
+   disparaît ; **E-mail de test** (confirmation requise) → statut « Envoyé » et identifiant Resend dans le journal.
+
+Diagnostic : statut « Échec » HTTP 403/422 = domaine non vérifié ou `EMAIL_FROM` hors du domaine ; 401 = clé invalide.
+Plan gratuit Resend : quota quotidien et mensuel limité (voir leur tarification) — suffisant pour un petit groupe.
 
 ## 6. Documents (stockage privé S3-compatible)
 
@@ -83,6 +99,24 @@ Sans configuration (`none`), le téléversement est désactivé proprement (mess
 ## 7. Assistant IA (facultatif)
 
 `AI_PROVIDER=anthropic`, `AI_API_KEY=<clé>`, éventuellement `AI_MODEL` (défaut `claude-opus-5-5`). Sinon la fonction reste désactivée.
+
+## 8. Ouvrir les inscriptions (facultatif)
+
+Prérequis : Resend configuré avec un domaine vérifié (§5). En production, sans e-mail réel, les inscriptions restent
+fermées automatiquement (personne ne pourrait confirmer son adresse).
+
+1. Render → groupe : `ALLOW_REGISTRATION=true` (facultatif : `REGISTRATION_MAX_PER_IP_PER_HOUR`, `REGISTRATION_MAX_PER_HOUR`,
+   `EMAIL_VERIFICATION_TTL_HOURS`) → **Manual Deploy** (la migration `0002` s'applique au démarrage).
+2. La page de connexion affiche **« Créer un compte »** → `/register`. La personne reçoit un lien de confirmation
+   (48 h) ; la connexion est refusée tant que l'adresse n'est pas confirmée (nouvel envoi possible depuis la connexion).
+3. Chaque membre a son propre profil, ses scores, candidatures, documents et alertes ; le catalogue d'opportunités est
+   commun. Sources de veille et collectes restent réservées à l'administrateur.
+4. Modération : menu **Utilisateurs** (administrateur) — état de confirmation, dernière connexion, désactivation.
+5. Chaque utilisateur peut supprimer son compte et toutes ses données (**Paramètres → Supprimer mon compte**).
+6. Avant d'ouvrir à des tiers : publiez une information sur le traitement des données (RGPD) et des mentions légales ;
+   pensez à la capacité des plans gratuits (Neon, Render, Resend) et au coût de l'assistant IA s'il est activé.
+
+Pour refermer : `ALLOW_REGISTRATION=false` puis redéployer (les comptes existants restent actifs).
 
 ## Vérifications après déploiement
 

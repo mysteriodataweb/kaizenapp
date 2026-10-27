@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 const SESSION_COOKIE = "oi_session";
-const PUBLIC_PAGES = ["/login", "/forgot-password", "/reset-password"];
+const PUBLIC_PAGES = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password"];
 
 /**
  * Redirection rapide des visiteurs sans cookie. La vérification réelle de la session a lieu
