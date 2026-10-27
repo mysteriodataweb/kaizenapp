@@ -25,11 +25,11 @@ Plan gratuit Neon : suffisant pour un usage personnel ; le calcul se suspend apr
 ## 2. Render — API et tâches planifiées
 
 1. <https://dashboard.render.com> → **New → Blueprint** → connecter GitHub → choisir le dépôt et la branche.
-   Render détecte `render.yaml` et propose : le groupe `opportunity-intelligence-shared`, le Web Service
-   `opportunity-intelligence-api` (plan **free**) et 5 Cron Jobs.
-   > ⚠️ **Coûts** : les Cron Jobs Render sont facturés à l'usage (pas de plan gratuit). Pour limiter le coût,
-   > éditez `render.yaml` avant de créer le Blueprint : supprimez les 5 jobs et décommentez `oi-daily`
-   > (un seul job quotidien qui enchaîne tout). Vérifiez la grille tarifaire Render avant validation.
+   Render détecte `render.yaml` et propose : le groupe `opportunity-intelligence-shared` et le Web Service
+   `opportunity-intelligence-api` (plan **free**). Les Cron Jobs sont **commentés** (payants, facturés à l'usage) :
+   pour les activer plus tard, décommentez `oi-daily` (un seul job quotidien, le moins cher) ou les 5 jobs séparés,
+   puis resynchronisez le Blueprint. Sans Cron Jobs, la collecte et les rappels se déclenchent depuis
+   l'écran **Sources de veille** (« Collecter maintenant ») et l'API admin (`/admin/jobs/check-deadlines`).
 2. Ouvrir **Env Groups → opportunity-intelligence-shared** et ajouter :
    - `DATABASE_URL`, `DATABASE_MIGRATION_URL` (Neon)
    - `BOOTSTRAP_ADMIN_EMAIL` = votre e-mail ; `BOOTSTRAP_ADMIN_PASSWORD` = mot de passe fort (≥ 12 caractères)

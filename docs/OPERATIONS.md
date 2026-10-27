@@ -2,6 +2,9 @@
 
 ## Tâches planifiées (Render Cron Jobs, horaires UTC)
 
+> État actuel : **désactivées** dans `render.yaml` (Cron Jobs payants). Les commandes ci-dessous restent
+> utilisables manuellement ; décommentez `oi-daily` pour automatiser le tout avec un seul job.
+
 | Job | Commande | Planification | Rôle |
 | --- | --- | --- | --- |
 | `oi-collect-opportunities` | `python -m app.jobs.collect_opportunities` | 04:15 chaque jour | Sources activées → recalcul des scores → alertes « nouvelles opportunités » → alertes d'échecs de collecte |

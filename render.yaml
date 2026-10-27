@@ -49,63 +49,66 @@ services:
     envVars:
       - fromGroup: opportunity-intelligence-shared
 
-  # Tâches planifiées (horaires en UTC). Les Cron Jobs Render sont facturés à l'usage :
-  # pour réduire les coûts, remplacer ces 5 jobs par le seul « oi-daily » commenté plus bas.
-  - type: cron
-    name: oi-collect-opportunities
-    runtime: python
-    rootDir: backend
-    region: frankfurt
-    schedule: "15 4 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.jobs.collect_opportunities
-    envVars:
-      - fromGroup: opportunity-intelligence-shared
+  # ---------------------------------------------------------------------------
+  # Tâches planifiées : DÉSACTIVÉES pour l'instant (les Cron Jobs Render sont payants).
+  # Pour les activer, décommenter SOIT le job unique « oi-daily » (recommandé, le moins cher),
+  # SOIT les 5 jobs séparés, puis resynchroniser le Blueprint.
+  # ---------------------------------------------------------------------------
+  # - type: cron
+  #   name: oi-collect-opportunities
+  #   runtime: python
+  #   rootDir: backend
+  #   region: frankfurt
+  #   schedule: "15 4 * * *"
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m app.jobs.collect_opportunities
+  #   envVars:
+  #     - fromGroup: opportunity-intelligence-shared
 
-  - type: cron
-    name: oi-recompute-matches
-    runtime: python
-    rootDir: backend
-    region: frankfurt
-    schedule: "45 4 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.jobs.recompute_matches
-    envVars:
-      - fromGroup: opportunity-intelligence-shared
+  # - type: cron
+  #   name: oi-recompute-matches
+  #   runtime: python
+  #   rootDir: backend
+  #   region: frankfurt
+  #   schedule: "45 4 * * *"
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m app.jobs.recompute_matches
+  #   envVars:
+  #     - fromGroup: opportunity-intelligence-shared
 
-  - type: cron
-    name: oi-check-deadlines
-    runtime: python
-    rootDir: backend
-    region: frankfurt
-    schedule: "0 6 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.jobs.check_deadlines
-    envVars:
-      - fromGroup: opportunity-intelligence-shared
+  # - type: cron
+  #   name: oi-check-deadlines
+  #   runtime: python
+  #   rootDir: backend
+  #   region: frankfurt
+  #   schedule: "0 6 * * *"
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m app.jobs.check_deadlines
+  #   envVars:
+  #     - fromGroup: opportunity-intelligence-shared
 
-  - type: cron
-    name: oi-send-digest
-    runtime: python
-    rootDir: backend
-    region: frankfurt
-    # Quotidien : chaque utilisateur reçoit son résumé (quotidien ou hebdomadaire) une seule fois par période.
-    schedule: "5 7 * * *"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.jobs.send_digest
-    envVars:
-      - fromGroup: opportunity-intelligence-shared
+  # - type: cron
+  #   name: oi-send-digest
+  #   runtime: python
+  #   rootDir: backend
+  #   region: frankfurt
+  #   # Quotidien : chaque utilisateur reçoit son résumé (quotidien ou hebdomadaire) une seule fois par période.
+  #   schedule: "5 7 * * *"
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m app.jobs.send_digest
+  #   envVars:
+  #     - fromGroup: opportunity-intelligence-shared
 
-  - type: cron
-    name: oi-cleanup
-    runtime: python
-    rootDir: backend
-    region: frankfurt
-    schedule: "30 3 * * 0"
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m app.jobs.cleanup_logs
-    envVars:
-      - fromGroup: opportunity-intelligence-shared
+  # - type: cron
+  #   name: oi-cleanup
+  #   runtime: python
+  #   rootDir: backend
+  #   region: frankfurt
+  #   schedule: "30 3 * * 0"
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m app.jobs.cleanup_logs
+  #   envVars:
+  #     - fromGroup: opportunity-intelligence-shared
 
   # Option économique (un seul Cron Job) — décommenter et supprimer les 5 jobs ci-dessus :
   # - type: cron

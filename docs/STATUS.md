@@ -58,7 +58,7 @@ extérieur) · **NOT TESTED**.
 | Neon accessible depuis le backend | BLOCKED | Projet Neon à créer ; connexion compatible pooler testée en local (PostgreSQL 16) |
 | Migrations appliquées | PASS (local) / BLOCKED (Neon) | `alembic upgrade head` + `alembic check` sans dérive ; appliquées automatiquement au démarrage Render |
 | Health check répond | PASS (local) / BLOCKED (Render) | `/api/v1/health` → 200 |
-| Tâches planifiées configurées | PASS (configuration) / BLOCKED (cloud) | 5 Cron Jobs + option `oi-daily` dans `render.yaml` |
+| Tâches planifiées configurées | PASS (configuration) / désactivées par choix | Cron Jobs commentés dans `render.yaml` (payants) ; `oi-daily` prêt à activer |
 | Logs permettent de diagnostiquer | PASS (local) | Logs JSON, X-Request-ID, journal des collectes et des e-mails |
 
 ## Reste à faire (actions de l'utilisateur)
