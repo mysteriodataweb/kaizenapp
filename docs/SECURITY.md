@@ -72,8 +72,10 @@
   l'adresse vérifiée serait l'étape suivante si nécessaire.
 - Mêmes règles que la collecte : `robots.txt` respecté, arrêt sur 401/403, page de connexion ou vérification anti-robot,
   **aucun contournement** ; l'utilisateur complète alors lui-même le formulaire.
-- **LinkedIn n'est jamais interrogé** (connexion requise, robots.txt restrictif) : seule l'adresse du lien est analysée ;
-  le reste vient du texte que l'utilisateur copie lui-même depuis sa session.
+- **Les pages LinkedIn ne sont jamais demandées** (connexion requise, robots.txt restrictif) : seule l'adresse du lien est
+  analysée (enveloppes `/safety/go/?url=…` comprises) ; le reste vient du texte que l'utilisateur copie lui-même. Seule
+  exception : un lien raccourci `lnkd.in` fait l'objet d'**une** requête (robots.txt respecté, mêmes contrôles SSRF) pour
+  lire sa destination, sans suivre la redirection.
 - Rien n'est inventé : champ introuvable = vide ; date trouvée = « à vérifier » tant que l'utilisateur ne la confirme pas ;
   avec l'IA, le texte collé est traité comme une **donnée** (balises dédiées, sortie JSON contrainte par schéma) et chaque
   valeur extraite (intitulé, entreprise, lieu, date via son extrait, durée, documents, critères) doit **figurer dans le texte**,

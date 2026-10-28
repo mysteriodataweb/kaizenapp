@@ -47,6 +47,13 @@ LEVER_RE = re.compile(
     r"^https://jobs\.(?P<eu>eu\.)?lever\.co/(?P<site>[\w.-]+)/(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
     re.I,
 )
+# Liens externes partagés dans un post LinkedIn : enveloppe /safety/go/?url=… autour d'un lien (souvent raccourci lnkd.in).
+LINKEDIN_WRAPPER_PATHS = ("/safety/go", "/redir/redirect")
+SHORTENER_HOSTS = frozenset({"lnkd.in"})
+SHORT_LINK_HELP = (
+    "Lien raccourci (lnkd.in) impossible à suivre automatiquement : ouvrez-le dans votre navigateur "
+    "et copiez l'adresse de la page d'arrivée."
+)
 LINKEDIN_VIEW_RE = re.compile(r"/(?:comm/)?jobs/view/(?P<segment>[^/?#]+)", re.I)
 LOGIN_PATH_RE = re.compile(r"/(login|signin|sign-in|authwall|connexion|auth)(/|$|\?)", re.I)
 
@@ -197,6 +204,32 @@ class SafeFetcher:
             return json.loads(fetched.body)
         except ValueError as exc:
             raise LinkImportError("Réponse JSON invalide.") from exc
+
+    def redirect_target(self, url: str) -> str | None:
+        """Destination d'un lien de redirection, SANS la suivre : la page d'arrivée n'est pas demandée."""
+        check_public_url(url, self.resolver)
+        try:
+            with self.client.stream("GET", url) as resp:
+                if resp.is_redirect:
+                    location = resp.headers.get("location")
+                    return urljoin(url, location) if location else None
+                if resp.status_code in (401, 403, 407, 999):
+                    raise AccessBlocked(SHORT_LINK_HELP)
+                ctype = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                if resp.status_code >= 400 or "html" not in ctype:
+                    return None
+                chunks: list[bytes] = []
+                size = 0
+                for chunk in resp.iter_bytes():
+                    size += len(chunk)
+                    chunks.append(chunk)
+                    if size > 500_000:
+                        break
+        except httpx.TimeoutException as exc:
+            raise LinkImportError("Le lien raccourci n'a pas répondu à temps.") from exc
+        except httpx.HTTPError as exc:
+            raise LinkImportError(f"Erreur réseau ({exc.__class__.__name__}).") from exc
+        return _interstitial_target(b"".join(chunks), url)
 
     def allowed_by_robots(self, url: str) -> bool:
         parts = urlsplit(url)
@@ -565,3 +598,62 @@ def extract_from_text_rules(text: str) -> Extraction:
     if deadline:
         notes.append("Une date limite a été repérée dans le texte : à vérifier.")
     return Extraction("texte", fields, notes, True)
+
+
+def _is_linkedin_host(host: str) -> bool:
+    return host == "linkedin.com" or host.endswith(".linkedin.com")
+
+
+def unwrap_link(url: str) -> str:
+    """Enveloppe de redirection LinkedIn (lien externe d'un post : /safety/go/?url=…) -> adresse de destination.
+
+    Simple lecture de l'adresse : aucune requête."""
+    current = url.strip()
+    for _ in range(3):
+        parts = urlsplit(current)
+        host = (parts.hostname or "").lower()
+        if not (_is_linkedin_host(host) and parts.path.rstrip("/") in LINKEDIN_WRAPPER_PATHS):
+            break
+        target = (parse_qs(parts.query).get("url") or [""])[0].strip()
+        if not re.match(r"^https?://\S+$", target, re.I):
+            break
+        current = target
+    return current
+
+
+def is_short_link(url: str) -> bool:
+    return (urlsplit(url.strip()).hostname or "").lower() in SHORTENER_HOSTS
+
+
+def _interstitial_target(body: bytes, base: str) -> str | None:
+    """Page intermédiaire « ce lien vous emmène hors de LinkedIn » : redirection meta, sinon premier lien externe."""
+    soup = BeautifulSoup(body, "html.parser")
+    refresh = soup.find("meta", attrs={"http-equiv": re.compile("refresh", re.I)})
+    if refresh and "url=" in str(refresh.get("content", "")).lower():
+        content = str(refresh["content"])
+        return urljoin(base, content[content.lower().index("url=") + 4 :].strip(" '\""))
+    for anchor in soup.find_all("a", href=True):
+        href = urljoin(base, str(anchor["href"]))
+        host = (urlsplit(href).hostname or "").lower()
+        if not href.lower().startswith(("http://", "https://")) or host in SHORTENER_HOSTS:
+            continue
+        job = parse_linkedin(href)
+        if (_is_linkedin_host(host) and not (job and job.job_id)) or host.endswith("licdn.com"):
+            continue
+        return href
+    return None
+
+
+def resolve_short_link(url: str, fetcher: SafeFetcher) -> str:
+    """Lien raccourci (lnkd.in) -> adresse de destination. robots.txt respecté ; la destination n'est pas lue."""
+    current = url.strip()
+    for _ in range(MAX_REDIRECTS):
+        if not is_short_link(current):
+            return current
+        if not fetcher.allowed_by_robots(current):
+            raise AccessBlocked(SHORT_LINK_HELP)
+        target = fetcher.redirect_target(current)
+        if not target:
+            raise LinkImportError(SHORT_LINK_HELP)
+        current = unwrap_link(target)
+    raise LinkImportError("Trop de redirections.")

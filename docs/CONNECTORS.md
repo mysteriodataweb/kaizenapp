@@ -81,6 +81,8 @@ jamais rattachées ni modifiées par la collecte.
 | Lien | Méthode | Données |
 | --- | --- | --- |
 | LinkedIn (`/jobs/view/…`, `/comm/jobs/view/…`, `?currentJobId=…`) | **Aucune requête** (connexion requise, robots.txt) : adresse du lien | identifiant (URL canonique `linkedin.com/jobs/view/{id}`), intitulé et entreprise lorsqu'ils figurent dans l'adresse |
+| Lien externe partagé dans un post LinkedIn (`linkedin.com/safety/go/?url=…`) | Enveloppe retirée **sans requête** | la destination est traitée comme un lien collé directement |
+| Lien raccourci `lnkd.in/…` | **Une seule requête** au lien raccourci (robots.txt respecté) pour connaître sa destination, sans suivre la redirection ; page intermédiaire : premier lien externe | la destination (offre LinkedIn, site carrières…) est ensuite traitée normalement ; si le lien ne peut pas être suivi, l'utilisateur est invité à copier l'adresse d'arrivée |
 | `boards.greenhouse.io/{board}/jobs/{id}` | API publique Greenhouse (offre unique) | titre, organisme, lieu, pays, description, départements |
 | `jobs.lever.co/{site}/{uuid}` (et `jobs.eu.lever.co`) | API publique Lever (offre unique) | titre, lieu, pays, télétravail, description, équipe |
 | Page avec données structurées schema.org `JobPosting` | JSON-LD | titre, organisme, lieu/pays, date limite (`validThrough`), type (`INTERN`), rémunération, description |
