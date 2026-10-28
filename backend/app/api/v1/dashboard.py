@@ -99,7 +99,7 @@ def dashboard(user: CurrentUser, db: DbSession) -> DashboardOut:
         .order_by(IngestionRun.started_at.desc())
         .limit(6)
     ).all()
-    sources = db.scalars(select(Source).order_by(Source.key)).all()
+    sources = db.scalars(select(Source).where(Source.connector != "manual").order_by(Source.key)).all()
     emails = db.scalars(
         select(NotificationLog)
         .where(NotificationLog.user_id == user.id)

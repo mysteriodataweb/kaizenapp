@@ -61,6 +61,22 @@
 - Uniquement des sources publiques et autorisées ; `robots.txt` respecté pour les pages HTML ; délai minimal par hôte ;
   `Retry-After` respecté ; arrêt immédiat sur 401/403/CAPTCHA (**aucun contournement**) ; User-Agent identifiable.
 
+## Ajout d'une offre par lien (URL fournie par l'utilisateur)
+
+- **Protection SSRF** : http/https uniquement, ports 80/443, pas d'identifiants dans l'URL ; le nom d'hôte est résolu
+  et **toutes** les adresses doivent être publiques (refus du bouclage, des réseaux privés, link-local dont
+  `169.254.169.254`, adresses réservées, IPv6 locales et IPv4 encapsulées) ; contrôle répété **à chaque redirection**
+  (5 au plus) ; 3 Mo lus au plus ; délai de 15 s ; types de contenu limités (HTML, JSON, PDF).
+- Limite connue : entre la vérification DNS et la connexion, un domaine piégé pourrait changer d'adresse (DNS rebinding).
+  Le risque est réduit (aucune réponse brute renvoyée au client, seuls des champs extraits) ; une connexion épinglée sur
+  l'adresse vérifiée serait l'étape suivante si nécessaire.
+- Mêmes règles que la collecte : `robots.txt` respecté, arrêt sur 401/403, page de connexion ou vérification anti-robot,
+  **aucun contournement** ; l'utilisateur complète alors lui-même le formulaire.
+- Rien n'est inventé : champ introuvable = vide ; date trouvée = « à vérifier » tant que l'utilisateur ne la confirme pas ;
+  l'offre reste « non vérifiée » (provenance « Ajouts manuels »). Un ajout ne modifie **jamais** une offre existante.
+- Abus limités : 30 analyses / heure et 20 ajouts / jour par utilisateur ; l'identifiant de l'auteur est conservé dans la
+  provenance ; la description est affichée comme texte (aucun HTML interprété).
+
 ## E-mails
 
 - Destinataires restreints à l'adresse **confirmée** du compte ; les adresses supplémentaires autorisées côté serveur

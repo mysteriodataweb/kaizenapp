@@ -37,6 +37,36 @@ export interface User {
   previous_seen_at: string | null;
 }
 
+export interface ImportDraft {
+  official_url: string;
+  type: OpportunityType | null;
+  title: string | null;
+  organization: string | null;
+  description: string | null;
+  location: string | null;
+  countries: string[];
+  remote: boolean | null;
+  deadline_date: string | null;
+  fields: string[];
+  stipend: string | null;
+}
+
+export interface ImportPreview {
+  url: string;
+  existing_opportunity_id: string | null;
+  fetched: boolean;
+  method: string;
+  notes: string[];
+  draft: ImportDraft;
+}
+
+export interface ImportResult {
+  opportunity_id: string;
+  created: boolean;
+  application_id: string | null;
+  message: string;
+}
+
 export interface AuthConfig {
   registration_open: boolean;
 }

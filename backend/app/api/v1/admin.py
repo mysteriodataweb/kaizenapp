@@ -22,6 +22,7 @@ from app.schemas.auth import AdminUserOut, AdminUserUpdate
 from app.schemas.misc import IngestionRunOut, SourceOut, SourceTestOut, SourceUpdate
 from app.services import auth as auth_service
 from app.services import matching
+from app.services.link_import import MANUAL_CONNECTOR
 from app.workers.connectors.registry import CONNECTORS
 from app.workers.ingestion import dry_run_source
 from app.workers.notifications import service as notif
@@ -33,7 +34,7 @@ TEST_COOLDOWN = timedelta(seconds=60)
 
 def _source(db, source_id: uuid.UUID) -> Source:  # type: ignore[no-untyped-def]
     src = db.get(Source, source_id)
-    if src is None:
+    if src is None or src.connector == MANUAL_CONNECTOR:
         raise NotFound("Source introuvable.")
     return src
 
@@ -48,7 +49,9 @@ def _out(db, src: Source) -> SourceOut:  # type: ignore[no-untyped-def]
 
 @router.get("/sources", response_model=list[SourceOut])
 def list_sources(_: AdminUser, db: DbSession) -> list[SourceOut]:
-    return [_out(db, s) for s in db.scalars(select(Source).order_by(Source.key))]
+    # Les ajouts manuels ne sont pas une source de collecte (ni test, ni collecte, ni configuration).
+    rows = db.scalars(select(Source).where(Source.connector != MANUAL_CONNECTOR).order_by(Source.key))
+    return [_out(db, s) for s in rows]
 
 
 @router.get("/connectors")

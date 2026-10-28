@@ -51,6 +51,8 @@ Comptes administrateurs : `python -m app.cli create-admin` ou amorçage `bootstr
 | --- | --- | --- |
 | GET | `/opportunities` | Filtres : `q, type, country, field, organization, study_level, funding (full/partial/full_or_partial), deadline_within_days, include_closed, eligibility, min_score, application_status, tracked, favorites_only` ; tri `sort` (`-score`, `deadline`, `-deadline`, `recent`, `title`) ; `page`, `page_size` ≤ 100 |
 | GET | `/opportunities/facets` | Pays, domaines, organismes, types disponibles |
+| POST | `/opportunities/import/preview` | `{url}` → brouillon pré-rempli (`draft`), méthode (`greenhouse-api`, `lever-api`, `json-ld`, `html`, `pdf`, `none`), remarques, `existing_opportunity_id` si l'offre existe déjà. **Rien n'est enregistré.** 422 `invalid_link` (adresse non publique, port, identifiants), 429 au-delà de 30 analyses / heure |
+| POST | `/opportunities/import` | Offre relue (`type`, `title`, `organization`, `official_url` obligatoires ; `deadline_date` + `deadline_confirmed`, `follow`…) → `{opportunity_id, created, application_id}`. Jamais d'écrasement d'une offre existante ; 20 ajouts / jour / utilisateur |
 | GET | `/opportunities/{id}` | Détail, provenance (`sources`), explication complète (`match_detail`) |
 | POST / DELETE | `/opportunities/{id}/favorite` | Ajouter / retirer des favoris (idempotent) |
 | GET | `/matches` | Comme `/opportunities` mais limité aux opportunités évaluées, avec raisons (satisfaits, non satisfaits, inconnus, à compléter) |

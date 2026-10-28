@@ -24,6 +24,7 @@ client e-mail remplacé par une boîte de simulation.
 | `test_api_core.py` | Profil (validation, version), catalogue (filtres, recherche, tri, pagination), détail (provenance, explication), favoris, recalcul après changement de profil, cycle de vie d'une candidature (doublon 409, confirmation humaine), tâches, isolation entre utilisateurs, tableau de bord, calendrier |
 | `test_documents_ai.py` | Téléversement/téléchargement/versions/suppression, types refusés, taille, confidentialité, liaison même propriétaire (API + contrainte SQL), stockage désactivé, extraction de CV sans enregistrement, assistant désactivé sans clé, assistant limité aux faits du profil |
 | `test_registration.py` | Inscription avec confirmation obligatoire, réponses non divulgatrices (compte existant prévenu, mot de passe inchangé), mot de passe faible, plafonds par IP et global, fermeture en production sans e-mail, lien expiré / renvoi / plafond d'envois, réinitialisation qui confirme l'adresse, destinataires (adresse confirmée, liste réservée à l'admin), modération (liste, désactivation, pas d'auto-désactivation), tableau de bord sans erreurs techniques pour les membres, suppression de compte (cascade + fichiers), dernier admin protégé |
+| `test_link_import.py` | Ajout par lien sur un web simulé : extraction JSON-LD / HTML / PDF / API Greenhouse et Lever, champs inconnus laissés vides, `robots.txt`, 403, CAPTCHA, page de connexion, contenu non pris en charge, **SSRF** (bouclage, réseaux privés, métadonnées cloud, IPv6, identifiants, port, redirection vers une adresse privée), doublon détecté sans lecture, enregistrement (provenance, fuseau de la date, suivi, score), jamais d'écrasement, partage et scores des autres membres, validation, authentification, limites, source interne masquée |
 | `test_notifications_jobs.py` | Déduplication, destinataires autorisés, préférences, rappels J-n (rattrapage), date inconnue sans rappel, date non vérifiée signalée, favoris, tâches, nouvelles opportunités une seule fois, modifications, périodes de récapitulatif, relances plafonnées, client Resend (succès, 429, idempotence, erreur définitive), e-mail de test confirmé, aperçus sans envoi, verrous de jobs, codes de sortie, nettoyage, job quotidien, protections admin |
 
 ## Frontend — Vitest + Testing Library
@@ -35,7 +36,8 @@ cd apps/web && npm test
 `tests/unit/` : formatage des dates dans le fuseau utilisateur, libellés d'échéance (inconnue / non vérifiée),
 client API (passerelle, erreurs normalisées, erreur réseau), composants du design system (accessibilité, statuts
 en français, score peu fiable, saisie de listes), formulaire de connexion, **confirmation humaine avant « Envoyée »**,
-filtres du catalogue, inscription (fermée/ouverte, validation, champs envoyés), nouvel envoi du lien de confirmation,
+filtres du catalogue, ajout par lien (brouillon pré-rempli, type obligatoire, saisie manuelle si lecture impossible,
+offre existante, lien refusé, charge utile envoyée), inscription (fermée/ouverte, validation, champs envoyés), nouvel envoi du lien de confirmation,
 confirmation d'adresse uniquement après un clic.
 
 ## End-to-end — Playwright
@@ -54,6 +56,8 @@ Le script prépare une base dédiée en exécutant **le vrai pipeline de collect
   calendrier, téléversement de document, administration des sources ;
 - `registration.spec.ts` : inscription → compte en attente → connexion refusée avec nouvel envoi proposé → visible et
   désactivable dans **Utilisateurs** (admin) ; lien de confirmation invalide ;
+- `import.spec.ts` (projet `desktop-catalogue-writes`, exécuté après les autres parcours car il ajoute une offre au
+  catalogue commun) : lien illisible (domaine `.invalid`) → saisie manuelle → offre créée avec provenance → doublon détecté ;
 - `responsive.spec.ts` (Pixel 7) : menu mobile et absence de débordement horizontal sur toutes les pages.
 
 ## Intégration continue
@@ -65,8 +69,8 @@ Le script prépare une base dédiée en exécutant **le vrai pipeline de collect
 
 | Suite | Résultat |
 | --- | --- |
-| Pytest | 116 tests, tous réussis |
-| Vitest | 26 tests réussis |
-| Playwright | 11 parcours réussis |
+| Pytest | 147 tests, tous réussis |
+| Vitest | 31 tests réussis |
+| Playwright | 12 parcours réussis |
 | ESLint / TypeScript / Ruff | aucun problème |
 | `next build` | réussi |

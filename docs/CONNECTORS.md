@@ -71,6 +71,24 @@ Le token Greenhouse est le segment d'URL `boards.greenhouse.io/<token>` ; le sit
 Une source non officielle n'écrase jamais les données d'une source officielle. Pour les sources à liste complète
 (Greenhouse, Lever), une annonce disparue lors d'un passage complet sans erreur est **fermée** (jamais supprimée).
 
+## Ajout manuel par lien
+
+Pour les offres que la collecte ne couvre pas, chaque utilisateur peut coller un lien (**Opportunités → Ajouter une offre**).
+Ce n'est pas un connecteur : aucune collecte planifiée, une seule page lue à la demande.
+
+| Lien | Méthode | Données |
+| --- | --- | --- |
+| `boards.greenhouse.io/{board}/jobs/{id}` | API publique Greenhouse (offre unique) | titre, organisme, lieu, pays, description, départements |
+| `jobs.lever.co/{site}/{uuid}` (et `jobs.eu.lever.co`) | API publique Lever (offre unique) | titre, lieu, pays, télétravail, description, équipe (pas le nom de l'organisme) |
+| Page avec données structurées schema.org `JobPosting` | JSON-LD | titre, organisme, lieu/pays, date limite (`validThrough`), type (`INTERN`), rémunération, description |
+| Autre page HTML | Contenu de la page | titre (`og:title`, `h1`, `<title>`), organisme (`og:site_name`), description, date limite repérée près d'un mot-clé |
+| PDF (appel à candidatures) | Texte du document | première ligne comme titre, description, date limite repérée |
+
+Le brouillon est **relu et complété par l'utilisateur** avant enregistrement. L'enregistrement passe par le pipeline commun
+(validation `NormalizedOpportunity`, dédoublonnage par URL canonique puis titre + organisme + date + lieu, provenance) via la
+source interne `manual-links` (désactivée, masquée de l'administration des sources). Les offres ajoutées sont communes à
+tous les membres, marquées « non vérifiées », et leurs scores sont calculés pour chacun.
+
 ## Ajouter un connecteur
 
 1. Créer une classe héritant de `Connector` (`name`, `official`, `complete_listing`, méthode `fetch()`).

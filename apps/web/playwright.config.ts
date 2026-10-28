@@ -16,7 +16,9 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /responsive\.spec\.ts/ },
+    { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /(responsive|import)\.spec\.ts/ },
+    // Ajoute des offres au catalogue partagé : exécuté après les parcours qui vérifient les volumes de la base e2e.
+    { name: "desktop-catalogue-writes", use: { ...devices["Desktop Chrome"] }, testMatch: /import\.spec\.ts/, dependencies: ["desktop"] },
     { name: "mobile", use: { ...devices["Pixel 7"] }, testMatch: /responsive\.spec\.ts/ },
   ],
 });

@@ -3,15 +3,17 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, BackgroundTasks, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.db.session import session_scope
 from app.models import Match
 from app.schemas.common import Page
+from app.schemas.link_import import ImportIn, ImportOut, ImportPreviewIn, ImportPreviewOut
 from app.schemas.opportunity import FacetsOut, OpportunityDetail, OpportunityFilters, OpportunityListItem
-from app.services import matching
+from app.services import link_import, matching
 from app.services import opportunities as service
 
 router = APIRouter(tags=["opportunités"])
@@ -36,6 +38,32 @@ def list_opportunities(
 ) -> Page[OpportunityListItem]:
     items, total = service.list_opportunities(db, user, filters)
     return Page(items=items, total=total, page=filters.page, page_size=filters.page_size)
+
+
+@router.post(
+    "/opportunities/import/preview",
+    response_model=ImportPreviewOut,
+    summary="Analyse le lien d'une offre et propose un brouillon (rien n'est enregistré)",
+)
+def import_preview(data: ImportPreviewIn, user: CurrentUser, db: DbSession) -> ImportPreviewOut:
+    return link_import.preview(db, user, data.url)
+
+
+def _recompute_all_matches() -> None:
+    with session_scope() as db:
+        matching.recompute_all(db)
+
+
+@router.post(
+    "/opportunities/import",
+    response_model=ImportOut,
+    summary="Ajoute au catalogue une offre relue par l'utilisateur (dédoublonnée, puis scores calculés)",
+)
+def import_opportunity(data: ImportIn, user: CurrentUser, db: DbSession, background: BackgroundTasks) -> ImportOut:
+    result = link_import.create(db, user, data)
+    if result.created:
+        background.add_task(_recompute_all_matches)
+    return result
 
 
 @router.get("/opportunities/facets", response_model=FacetsOut)
