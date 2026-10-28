@@ -52,7 +52,10 @@ from app.workers.link_import import (
     extract,
     extract_from_text_rules,
     extraction_from_linkedin,
+    is_short_link,
     parse_linkedin,
+    resolve_short_link,
+    unwrap_link,
 )
 
 logger = logging.getLogger("app.link_import")
@@ -94,9 +97,26 @@ def _valid_link(url: str) -> str:
 
 
 def _official_url(url: str) -> str:
-    """Adresse de référence : la forme canonique pour LinkedIn (sans paramètres de suivi)."""
+    """Adresse de référence : enveloppe LinkedIn retirée, forme canonique pour une offre LinkedIn."""
+    url = unwrap_link(url)
     job = parse_linkedin(url)
     return job.canonical_url if job and job.canonical_url else url.strip()
+
+
+def _follow_short_link(url: str, fetcher: SafeFetcher | None = None) -> str:
+    """Enveloppe LinkedIn retirée (sans requête) puis lien raccourci lnkd.in suivi jusqu'à sa destination.
+
+    Lève InvalidLink si la destination n'est pas publique, LinkImportError si le lien ne peut pas être suivi."""
+    url = unwrap_link(url)
+    if not is_short_link(url):
+        return url
+    if fetcher is not None:
+        target = resolve_short_link(url, fetcher)
+    else:
+        with make_fetcher() as own:
+            target = resolve_short_link(url, own)
+    check_url_shape(target)
+    return target
 
 
 def find_for_user(db: Session, user: User, url: str) -> Opportunity | None:
@@ -143,7 +163,14 @@ def preview(db: Session, user: User, url: str, text: str | None = None) -> Impor
         "Trop d'analyses de liens : réessayez dans une heure.",
     )
     db.commit()
-    url = _valid_link(url)
+    url = unwrap_link(_valid_link(url))
+    short_link_note: str | None = None
+    try:
+        url = _follow_short_link(url)
+    except InvalidLink as exc:
+        raise AppError(str(exc), code="invalid_link", status_code=422) from exc
+    except LinkImportError as exc:
+        short_link_note = str(exc)
     official = _official_url(url)
     existing = find_for_user(db, user, official)
     if existing is not None:
@@ -157,7 +184,10 @@ def preview(db: Session, user: User, url: str, text: str | None = None) -> Impor
         )
 
     linkedin = parse_linkedin(url)
-    if linkedin is not None:
+    if short_link_note is not None:
+        # Destination inconnue : rien n'est lu, l'utilisateur complète (ou colle le texte de l'offre).
+        result = Extraction("none", {"official_url": url}, [short_link_note], False)
+    elif linkedin is not None:
         result = extraction_from_linkedin(linkedin)
     else:
         try:
@@ -318,49 +348,63 @@ def quick_save(db: Session, user: User, data: QuickImportIn) -> QuickImportOut:
     )
     db.commit()
     items: list[QuickImportItem] = []
-    for url in urls:
-        try:
-            check_url_shape(url)
-        except InvalidLink as exc:
-            items.append(QuickImportItem(url=url, error=str(exc)))
-            continue
-        if len(url) > 1000:
-            items.append(QuickImportItem(url=url[:1000], error="Lien trop long."))
-            continue
-        job = parse_linkedin(url)
-        if job is not None and job.job_id is None:
-            items.append(QuickImportItem(url=url, error="Lien LinkedIn sans identifiant d'offre."))
-            continue
-        official = job.canonical_url if job and job.canonical_url else url
-        opp = find_for_user(db, user, official)
-        created = opp is None
-        if opp is None:
-            host = (urlsplit(official).hostname or "").removeprefix("www.")
-            title = (job.title if job else None) or (
-                f"Offre LinkedIn n° {job.job_id}" if job else f"Offre à compléter — {host}"
-            )
-            fields = OpportunityFields(
-                official_url=official,
-                type=data.type,
-                title=title[:400] if len(title) >= 3 else f"Offre — {host}",
-                organization=(job.organization if job else None) or PLACEHOLDER_ORGANIZATION,
-            )
-            opp = _create_private(db, user, fields, official)
-            db.commit()
-            matching.ensure_match(db, user, opp)
-            db.commit()
-        application_id = _follow(db, user, opp)
-        items.append(
-            QuickImportItem(
-                url=url, opportunity_id=opp.id, application_id=application_id, created=created, title=opp.title
-            )
-        )
+    fetcher: SafeFetcher | None = None  # créé seulement si un lien raccourci doit être suivi
+    try:
+        for pasted in urls:
+            if len(pasted) > 1000:
+                items.append(QuickImportItem(url=pasted[:1000], error="Lien trop long."))
+                continue
+            try:
+                check_url_shape(pasted)
+                if is_short_link(unwrap_link(pasted)) and fetcher is None:
+                    fetcher = make_fetcher()
+                url = _follow_short_link(pasted, fetcher)
+            except LinkImportError as exc:
+                items.append(QuickImportItem(url=pasted, error=str(exc)))
+                continue
+            item = _quick_save_one(db, user, data, pasted, url)
+            items.append(item)
+    finally:
+        if fetcher is not None:
+            fetcher.close()
     log_event(logger, "link import: quick save", count=len(urls))
     return QuickImportOut(
         items=items,
         created=sum(1 for i in items if i.created),
         already_saved=sum(1 for i in items if i.opportunity_id and not i.created),
         errors=sum(1 for i in items if i.error),
+    )
+
+
+def _quick_save_one(db: Session, user: User, data: QuickImportIn, pasted: str, url: str) -> QuickImportItem:
+    job = parse_linkedin(url)
+    if job is not None and job.job_id is None:
+        return QuickImportItem(
+            url=pasted,
+            error="Lien LinkedIn sans identifiant d'offre : ouvrez l'offre puis copiez son adresse "
+            "(de la forme linkedin.com/jobs/view/…).",
+        )
+    official = job.canonical_url if job and job.canonical_url else url
+    opp = find_for_user(db, user, official)
+    created = opp is None
+    if opp is None:
+        host = (urlsplit(official).hostname or "").removeprefix("www.")
+        title = (job.title if job else None) or (
+            f"Offre LinkedIn n° {job.job_id}" if job else f"Offre à compléter — {host}"
+        )
+        fields = OpportunityFields(
+            official_url=official,
+            type=data.type,
+            title=title[:400] if len(title) >= 3 else f"Offre — {host}",
+            organization=(job.organization if job else None) or PLACEHOLDER_ORGANIZATION,
+        )
+        opp = _create_private(db, user, fields, official)
+        db.commit()
+        matching.ensure_match(db, user, opp)
+        db.commit()
+    application_id = _follow(db, user, opp)
+    return QuickImportItem(
+        url=pasted, opportunity_id=opp.id, application_id=application_id, created=created, title=opp.title
     )
 
 

@@ -665,3 +665,81 @@ def test_account_deletion_with_personal_offers(client, db):
     resp = client.post("/api/v1/auth/delete-account", headers=member, json={"password": "Mot-de-passe-solide-2026"})
     assert resp.status_code == 200, resp.text
     assert db.scalar(select(func.count()).select_from(Opportunity)) == 0
+
+
+# ------------------------------------------------------------------ liens partagés dans un post (enveloppe + lnkd.in)
+WRAPPED = (
+    "https://www.linkedin.com/safety/go/?url=https%3A%2F%2Flnkd%2Ein%2Fgb93zbZ5&urlhash=BhYm"
+    "&mt=2ggi6CM4sn6DbpvsCcfsBzFnOvo9BRrjPfKMoKU-CwDiDHzf0eoD_-ZB4xZXFjPoZulCDq7GX8EpqPZ1WaGsCuMkU46P&isSdui=true"
+)
+SHORT = "https://lnkd.in/gb93zbZ5"
+
+
+def test_unwrap_linkedin_envelopes_without_any_request():
+    from app.workers.link_import import unwrap_link
+
+    assert unwrap_link(WRAPPED) == SHORT
+    direct = "https://www.linkedin.com/safety/go/?url=https%3A%2F%2Fcareers.acme.example%2Fjobs%2F42&urlhash=x"
+    assert unwrap_link(direct) == "https://careers.acme.example/jobs/42"
+    assert unwrap_link("https://www.linkedin.com/safety/go/?url=javascript%3Aalert(1)").startswith(
+        "https://www.linkedin"
+    )
+    assert unwrap_link("https://careers.acme.example/jobs/42") == "https://careers.acme.example/jobs/42"
+
+
+def test_quick_save_follows_short_link_to_linkedin_job_without_reading_linkedin(client, auth, web):
+    requested = web(
+        {SHORT: httpx.Response(301, headers={"location": "https://www.linkedin.com/jobs/view/4087654321/?trk=post"})}
+    )
+    out = client.post("/api/v1/opportunities/import/quick", headers=auth, json={"urls": [WRAPPED]}).json()
+    item = out["items"][0]
+    assert out["created"] == 1 and item["error"] is None
+    assert item["title"] == "Offre LinkedIn n° 4087654321"
+    assert requested == ["https://lnkd.in/robots.txt", SHORT]  # aucune page LinkedIn demandée
+    queue = client.get("/api/v1/applications", headers=auth).json()
+    assert queue[0]["opportunity"]["official_url"] == "https://www.linkedin.com/jobs/view/4087654321"
+
+
+def test_quick_save_short_link_to_external_site_is_not_read(client, auth, web):
+    requested = web(
+        {SHORT: httpx.Response(302, headers={"location": "https://careers.acme.example/jobs/42?utm_source=li"})}
+    )
+    item = client.post("/api/v1/opportunities/import/quick", headers=auth, json={"urls": [SHORT]}).json()["items"][0]
+    assert item["title"] == "Offre à compléter — careers.acme.example"
+    assert not any("careers.acme.example" in r for r in requested)
+
+
+def test_short_link_respects_robots_txt(client, auth, web):
+    requested = web({"https://lnkd.in/robots.txt": httpx.Response(200, text="User-agent: *\nDisallow: /")})
+    out = client.post("/api/v1/opportunities/import/quick", headers=auth, json={"urls": [WRAPPED]}).json()
+    assert out["errors"] == 1 and "ouvrez-le dans votre navigateur" in out["items"][0]["error"]
+    assert SHORT not in requested
+
+
+def test_short_link_interstitial_page_then_destination_is_analysed(client, auth, web):
+    interstitial = html(
+        "<html><body><p>Ce lien vous emmène hors de LinkedIn</p>"
+        '<a href="https://www.linkedin.com/legal/user-agreement">Conditions</a>'
+        '<a href="https://careers.acme.example/jobs/42">https://careers.acme.example/jobs/42</a></body></html>'
+    )
+    page = html(JOB_PAGE.replace("{json}", json.dumps(POSTING)))
+    web({SHORT: interstitial, "https://careers.acme.example/jobs/42": page})
+    body = preview(client, auth, WRAPPED).json()
+    assert body["method"] == "json-ld"
+    assert body["draft"]["official_url"] == "https://careers.acme.example/jobs/42"
+    assert body["draft"]["organization"] == "ACME Analytics"
+
+
+def test_short_link_to_private_address_is_refused(client, auth, web):
+    web({SHORT: httpx.Response(301, headers={"location": "http://10.0.0.5/interne"})})
+    out = client.post("/api/v1/opportunities/import/quick", headers=auth, json={"urls": [SHORT]}).json()
+    assert out["errors"] == 1 and "site public" in out["items"][0]["error"]
+    assert preview(client, auth, SHORT).status_code == 422
+
+
+def test_unreachable_short_link_falls_back_to_manual_form(client, auth, web):
+    web({SHORT: httpx.Response(404, text="introuvable")})
+    body = preview(client, auth, WRAPPED).json()
+    assert body["fetched"] is False
+    assert "ouvrez-le dans votre navigateur" in body["notes"][0]
+    assert body["draft"]["official_url"] == SHORT
