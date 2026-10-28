@@ -35,6 +35,7 @@ from app.schemas.application import (
     UrgencyOut,
 )
 from app.services.priority import compute_urgency
+from app.services.visibility import is_visible
 
 SUBMITTED_STATES = {ApplicationStatus.SUBMITTED, ApplicationStatus.SELECTION, ApplicationStatus.ACCEPTED}
 
@@ -164,7 +165,7 @@ def get_application(db: Session, user: User, application_id: uuid.UUID) -> Appli
 
 def create_application(db: Session, user: User, data: ApplicationCreate) -> ApplicationOut:
     opp = db.get(Opportunity, data.opportunity_id)
-    if opp is None:
+    if opp is None or not is_visible(opp, user.id):
         raise NotFound("Opportunité introuvable.")
     existing = db.scalar(
         select(Application.id).where(Application.user_id == user.id, Application.opportunity_id == opp.id)

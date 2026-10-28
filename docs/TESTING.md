@@ -24,6 +24,7 @@ client e-mail remplacé par une boîte de simulation.
 | `test_api_core.py` | Profil (validation, version), catalogue (filtres, recherche, tri, pagination), détail (provenance, explication), favoris, recalcul après changement de profil, cycle de vie d'une candidature (doublon 409, confirmation humaine), tâches, isolation entre utilisateurs, tableau de bord, calendrier |
 | `test_documents_ai.py` | Téléversement/téléchargement/versions/suppression, types refusés, taille, confidentialité, liaison même propriétaire (API + contrainte SQL), stockage désactivé, extraction de CV sans enregistrement, assistant désactivé sans clé, assistant limité aux faits du profil |
 | `test_registration.py` | Inscription avec confirmation obligatoire, réponses non divulgatrices (compte existant prévenu, mot de passe inchangé), mot de passe faible, plafonds par IP et global, fermeture en production sans e-mail, lien expiré / renvoi / plafond d'envois, réinitialisation qui confirme l'adresse, destinataires (adresse confirmée, liste réservée à l'admin), modération (liste, désactivation, pas d'auto-désactivation), tableau de bord sans erreurs techniques pour les membres, suppression de compte (cascade + fichiers), dernier admin protégé |
+| `test_link_import.py` | Lecture sûre sur un web simulé (JSON-LD / HTML / PDF / API Greenhouse et Lever, robots.txt, 403, CAPTCHA, connexion, **SSRF**), **LinkedIn jamais interrogé** (identifiant, intitulé et entreprise tirés de l'adresse, variantes de lien = même offre), texte collé avec **IA simulée** (valeurs absentes du texte écartées, repli sur les règles si l'IA échoue) ou sans IA, **offres privées** (invisibles pour les autres : catalogue, détail, favori, suivi, facettes, tableau de bord, scores ; même lien = copie propre à chacun ; collecte sans effet sur elles), ajout rapide de plusieurs liens (doublons, erreurs, suivi « À explorer », limite), modification/suppression par l'auteur seul (403 / 404 / 409), suppression de compte avec offres personnelles |
 | `test_notifications_jobs.py` | Déduplication, destinataires autorisés, préférences, rappels J-n (rattrapage), date inconnue sans rappel, date non vérifiée signalée, favoris, tâches, nouvelles opportunités une seule fois, modifications, périodes de récapitulatif, relances plafonnées, client Resend (succès, 429, idempotence, erreur définitive), e-mail de test confirmé, aperçus sans envoi, verrous de jobs, codes de sortie, nettoyage, job quotidien, protections admin |
 
 ## Frontend — Vitest + Testing Library
@@ -35,7 +36,9 @@ cd apps/web && npm test
 `tests/unit/` : formatage des dates dans le fuseau utilisateur, libellés d'échéance (inconnue / non vérifiée),
 client API (passerelle, erreurs normalisées, erreur réseau), composants du design system (accessibilité, statuts
 en français, score peu fiable, saisie de listes), formulaire de connexion, **confirmation humaine avant « Envoyée »**,
-filtres du catalogue, inscription (fermée/ouverte, validation, champs envoyés), nouvel envoi du lien de confirmation,
+filtres du catalogue, enregistrement d'offres (plusieurs liens, texte collé + brouillon IA, type obligatoire, offre déjà
+enregistrée, lien refusé, charge utile), liste « À postuler » (ordre, une offre à la fois, « Plus tard », confirmation avant
+« Envoyée »), inscription (fermée/ouverte, validation, champs envoyés), nouvel envoi du lien de confirmation,
 confirmation d'adresse uniquement après un clic.
 
 ## End-to-end — Playwright
@@ -54,6 +57,9 @@ Le script prépare une base dédiée en exécutant **le vrai pipeline de collect
   calendrier, téléversement de document, administration des sources ;
 - `registration.spec.ts` : inscription → compte en attente → connexion refusée avec nouvel envoi proposé → visible et
   désactivable dans **Utilisateurs** (admin) ; lien de confirmation invalide ;
+- `import.spec.ts` (projet `desktop-catalogue-writes`, exécuté après les parcours qui comptent les offres de la base e2e) :
+  deux liens LinkedIn enregistrés d'un coup → « À postuler » → « Plus tard » → « J'ai postulé » confirmé ; offre détaillée
+  à partir d'un texte collé (domaine `.invalid`, sans IA) → modification → suppression ;
 - `responsive.spec.ts` (Pixel 7) : menu mobile et absence de débordement horizontal sur toutes les pages.
 
 ## Intégration continue
@@ -65,8 +71,8 @@ Le script prépare une base dédiée en exécutant **le vrai pipeline de collect
 
 | Suite | Résultat |
 | --- | --- |
-| Pytest | 116 tests, tous réussis |
-| Vitest | 26 tests réussis |
-| Playwright | 11 parcours réussis |
+| Pytest | 157 tests, tous réussis |
+| Vitest | 35 tests réussis |
+| Playwright | 13 parcours réussis |
 | ESLint / TypeScript / Ruff | aucun problème |
 | `next build` | réussi |

@@ -1,8 +1,10 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
+import { LinkButton } from "@/components/ui/button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
@@ -36,7 +38,12 @@ export function CatalogueView({ mode }: { mode: "opportunities" | "matches" }) {
         description={
           mode === "matches"
             ? "Classement par score de compatibilité (0–100) avec ses raisons. Le score n'est pas une probabilité d'acceptation ; l'éligibilité est évaluée séparément."
-            : "Stages et bourses de master collectés depuis des sources vérifiées, avec leur provenance."
+            : "Stages et bourses de master collectés depuis des sources vérifiées, et vos offres personnelles enregistrées par lien (visibles de vous seul)."
+        }
+        actions={
+          mode === "opportunities" ? (
+            <LinkButton href="/opportunities/new" variant="primary" icon={<Plus className="size-4" aria-hidden />}>Enregistrer des offres</LinkButton>
+          ) : undefined
         }
       />
       <OpportunityFilters value={filters} facets={facets} onChange={update} />
@@ -51,7 +58,7 @@ export function CatalogueView({ mode }: { mode: "opportunities" | "matches" }) {
             description={
               Object.keys(filters).some((k) => !["page", "sort"].includes(k))
                 ? "Aucun résultat pour ces filtres. Élargissez votre recherche."
-                : "Le catalogue est vide : la collecte quotidienne l'alimentera dès qu'une source sera activée."
+                : "Le catalogue est vide : enregistrez des offres à partir de leurs liens, ou activez une source de veille."
             }
           />
         ) : (

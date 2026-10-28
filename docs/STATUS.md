@@ -12,6 +12,7 @@ extérieur) · **NOT TESTED**.
 | Critère | Statut | Preuve / commentaire |
 | --- | --- | --- |
 | Le profil est modifiable | PASS | `test_profile_roundtrip_and_validation`, e2e « profil » |
+| Offres personnelles par lien (LinkedIn sans requête, texte collé + IA vérifiée, ajout rapide, privées) et liste « À postuler » | PASS (local) / NOT TESTED (IA réelle, sites réels) | `test_link_import.py` (web et IA simulés), Vitest, e2e `import.spec.ts` ; API Anthropic et sites réels injoignables depuis l'environnement de développement |
 | Le catalogue affiche des opportunités **réelles** provenant de sources vérifiées | BLOCKED | Pipeline complet prouvé sur jeux de test (e2e « collecte → catalogue ») ; sources réelles injoignables depuis cet environnement. À valider après déploiement via « Tester » puis collecte |
 | Les annonces ont une provenance | PASS | Contrainte SQL + `test_detail_has_provenance_and_explanation`, page détail (e2e) |
 | Les filtres fonctionnent | PASS | `test_catalogue_filters_sort_pagination`, e2e (type, recherche) |

@@ -8,6 +8,7 @@ export const fr = {
   nav: {
     dashboard: "Tableau de bord",
     opportunities: "Opportunités",
+    queue: "À postuler",
     matches: "Compatibilités",
     applications: "Candidatures",
     calendar: "Calendrier",

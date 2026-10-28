@@ -50,7 +50,11 @@ Comptes administrateurs : `python -m app.cli create-admin` ou amorçage `bootstr
 | Méthode | Chemin | Description |
 | --- | --- | --- |
 | GET | `/opportunities` | Filtres : `q, type, country, field, organization, study_level, funding (full/partial/full_or_partial), deadline_within_days, include_closed, eligibility, min_score, application_status, tracked, favorites_only` ; tri `sort` (`-score`, `deadline`, `-deadline`, `recent`, `title`) ; `page`, `page_size` ≤ 100 |
-| GET | `/opportunities/facets` | Pays, domaines, organismes, types disponibles |
+| GET | `/opportunities/facets` | Pays, domaines, organismes, types disponibles (catalogue commun + vos offres personnelles) |
+| POST | `/opportunities/import/preview` | `{url, text?}` → brouillon pré-rempli (`draft`), méthode (`linkedin-url`, `greenhouse-api`, `lever-api`, `json-ld`, `html`, `pdf`, `none`, suffixe `+texte`), `ai_used`, remarques, `existing_opportunity_id` si l'offre est déjà enregistrée. LinkedIn n'est jamais interrogé. **Rien n'est enregistré.** 422 `invalid_link`, 429 au-delà de 30 analyses / heure |
+| POST | `/opportunities/import` | Offre **personnelle** relue (`type`, `title`, `organization`, `official_url` obligatoires ; `deadline_date` + `deadline_confirmed`, `follow` = vrai par défaut…) → `{opportunity_id, created, application_id}`. Si l'offre est déjà visible (la vôtre ou le catalogue commun), elle est réutilisée ; 200 ajouts / jour |
+| POST | `/opportunities/import/quick` | `{urls (1–50), type}` : enregistre chaque lien sans lire les pages (LinkedIn : identifiant, intitulé et entreprise lus dans l'adresse) et l'ajoute à « À explorer » → détail par lien (`created`, déjà présent, erreur) |
+| PUT / DELETE | `/opportunities/{id}` | Modifier / supprimer une offre personnelle (auteur uniquement ; 403 sur le catalogue commun, 404 sur l'offre d'un autre) ; la suppression retire aussi son suivi |
 | GET | `/opportunities/{id}` | Détail, provenance (`sources`), explication complète (`match_detail`) |
 | POST / DELETE | `/opportunities/{id}/favorite` | Ajouter / retirer des favoris (idempotent) |
 | GET | `/matches` | Comme `/opportunities` mais limité aux opportunités évaluées, avec raisons (satisfaits, non satisfaits, inconnus, à compléter) |

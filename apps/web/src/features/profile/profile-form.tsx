@@ -15,18 +15,13 @@ import { TagInput } from "@/components/ui/tag-input";
 import { useToast } from "@/components/ui/toast";
 import { t } from "@/i18n";
 import { api, errorMessage } from "@/lib/api";
-import { CEFR_LEVELS, COMMON_COUNTRIES, COMMON_LANGUAGES, countryName, languageName } from "@/lib/format";
+import { CEFR_LEVELS, COMMON_COUNTRIES, COMMON_LANGUAGES, countryName, languageName, parseCountryInput } from "@/lib/format";
 import type { Profile } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 import { CvImport, type CvSelection } from "./cv-import";
 import { type ProfileFormValues, profileSchema, toPayload } from "./schema";
 
-const COUNTRY_INPUT = (raw: string): string | null => {
-  const v = raw.trim();
-  if (/^[A-Za-z]{2}$/.test(v)) return v.toUpperCase();
-  const found = COMMON_COUNTRIES.find((c) => countryName(c).toLowerCase() === v.toLowerCase());
-  return found ?? null;
-};
+const COUNTRY_INPUT = parseCountryInput;
 
 function defaults(p: Profile): ProfileFormValues {
   return {

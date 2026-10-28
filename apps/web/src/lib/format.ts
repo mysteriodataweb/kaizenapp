@@ -41,6 +41,14 @@ export function relativeDeadline(iso: string | null, status: string, tz?: string
 const regionNames = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames([LOCALE], { type: "region" }) : null;
 const languageNames = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames([LOCALE], { type: "language" }) : null;
 
+/** Saisie libre d'un pays (code ISO ou nom courant) -> code ISO, ou null si inconnu. */
+export function parseCountryInput(raw: string): string | null {
+  const v = raw.trim();
+  if (/^[A-Za-z]{2}$/.test(v)) return v.toUpperCase();
+  const found = COMMON_COUNTRIES.find((c) => countryName(c).toLowerCase() === v.toLowerCase());
+  return found ?? null;
+}
+
 export function countryName(code: string): string {
   try {
     return regionNames?.of(code.toUpperCase()) ?? code;

@@ -12,6 +12,7 @@ from app.core.timeutil import utcnow
 from app.models import Application, Favorite, IngestionRun, Match, NotificationLog, Opportunity, Source, Task
 from app.models.enums import ACTIVE_APPLICATION_STATUSES
 from app.services.applications import list_applications
+from app.services.visibility import visible_to
 
 router = APIRouter(tags=["tableau de bord"])
 
@@ -45,12 +46,15 @@ def dashboard(user: CurrentUser, db: DbSession) -> DashboardOut:
     open_cond = and_(
         Opportunity.status != "closed", or_(Opportunity.deadline_at.is_(None), Opportunity.deadline_at >= now)
     )
-    by_type = dict(db.execute(select(Opportunity.type, func.count()).where(open_cond).group_by(Opportunity.type)).all())
+    visible = visible_to(user.id)
+    by_type = dict(
+        db.execute(select(Opportunity.type, func.count()).where(open_cond, visible).group_by(Opportunity.type)).all()
+    )
     since = user.previous_seen_at
     new_count = (
-        db.scalar(select(func.count()).select_from(Opportunity).where(Opportunity.first_seen_at > since))
+        db.scalar(select(func.count()).select_from(Opportunity).where(visible, Opportunity.first_seen_at > since))
         if since
-        else db.scalar(select(func.count()).select_from(Opportunity))
+        else db.scalar(select(func.count()).select_from(Opportunity).where(visible))
     )
     elig = dict(
         db.execute(

@@ -4,7 +4,7 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import Select, and_, func, or_, select, text
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ from app.schemas.opportunity import (
     SourceRef,
 )
 from app.services import matching
+from app.services.visibility import is_visible, visible_to
 
 
 def _base_query(user: User) -> Select[Any]:
@@ -34,6 +35,7 @@ def _base_query(user: User) -> Select[Any]:
         .outerjoin(Match, and_(Match.opportunity_id == Opportunity.id, Match.user_id == user.id))
         .outerjoin(Application, and_(Application.opportunity_id == Opportunity.id, Application.user_id == user.id))
         .outerjoin(Favorite, and_(Favorite.opportunity_id == Opportunity.id, Favorite.user_id == user.id))
+        .where(visible_to(user.id))
     )
 
 
@@ -114,6 +116,7 @@ def _list_item(row: Any) -> OpportunityListItem:
     item.is_favorite = row.favorite_user is not None
     item.application_id = row.application_id
     item.application_status = row.application_status
+    item.is_private = opp.owner_user_id is not None
     if match is not None:
         item.match = MatchSummary(
             eligibility=match.eligibility, score=match.score, confidence=match.confidence, computed_at=match.computed_at
@@ -128,21 +131,22 @@ def list_opportunities(db: Session, user: User, f: OpportunityFilters) -> tuple[
     return [_list_item(r) for r in rows], total
 
 
-def get_opportunity(db: Session, opportunity_id: uuid.UUID) -> Opportunity:
+def get_opportunity(db: Session, opportunity_id: uuid.UUID, user: User) -> Opportunity:
     opp = db.get(Opportunity, opportunity_id)
-    if opp is None:
+    # L'offre privée d'un autre utilisateur est traitée comme inexistante.
+    if opp is None or not is_visible(opp, user.id):
         raise NotFound("Opportunité introuvable.")
     return opp
 
 
 def get_detail(db: Session, user: User, opportunity_id: uuid.UUID) -> OpportunityDetail:
-    opp = get_opportunity(db, opportunity_id)
+    opp = get_opportunity(db, opportunity_id, user)
     match = matching.ensure_match(db, user, opp)
     db.commit()
     row = db.execute(_base_query(user).where(Opportunity.id == opp.id)).first()
     base = _list_item(row)
     detail = OpportunityDetail.model_validate(opp)
-    for key in ("is_favorite", "application_id", "application_status", "match"):
+    for key in ("is_favorite", "application_id", "application_status", "match", "is_private"):
         setattr(detail, key, getattr(base, key))
     detail.match_detail = match.explanation if match else None
     sources = db.execute(
@@ -161,11 +165,21 @@ def get_detail(db: Session, user: User, opportunity_id: uuid.UUID) -> Opportunit
         )
         for os, src in sources
     ]
+    if opp.owner_user_id is not None:
+        detail.sources = [
+            SourceRef(
+                source_key="manual-links",
+                source_name="Ajout personnel (lien)",
+                source_url=opp.official_url,
+                first_seen_at=opp.first_seen_at,
+                last_seen_at=opp.last_seen_at,
+            )
+        ]
     return detail
 
 
 def set_favorite(db: Session, user: User, opportunity_id: uuid.UUID, favorite: bool) -> bool:
-    get_opportunity(db, opportunity_id)
+    get_opportunity(db, opportunity_id, user)
     if favorite:
         db.execute(insert(Favorite).values(user_id=user.id, opportunity_id=opportunity_id).on_conflict_do_nothing())
     else:
@@ -174,24 +188,24 @@ def set_favorite(db: Session, user: User, opportunity_id: uuid.UUID, favorite: b
     return favorite
 
 
-def facets(db: Session) -> FacetsOut:
-    country_rows = db.execute(
-        text("SELECT DISTINCT unnest(countries) AS c FROM opportunities WHERE status <> 'closed' ORDER BY c")
-    ).all()
+def facets(db: Session, user: User) -> FacetsOut:
+    scope = and_(Opportunity.status != "closed", visible_to(user.id))
+    country = func.unnest(Opportunity.countries).label("c")
+    country_rows = db.execute(select(country).where(scope).distinct().order_by(country)).all()
+    fields = select(func.unnest(Opportunity.fields).label("f")).where(scope).subquery()
     field_rows = db.execute(
-        text(
-            "SELECT f, count(*) FROM (SELECT unnest(fields) AS f FROM opportunities WHERE status <> 'closed') s "
-            "GROUP BY f ORDER BY count(*) DESC, f LIMIT 60"
-        )
+        select(fields.c.f, func.count()).group_by(fields.c.f).order_by(func.count().desc(), fields.c.f).limit(60)
     ).all()
     org_rows = db.execute(
         select(Opportunity.organization, func.count())
-        .where(Opportunity.status != "closed")
+        .where(Opportunity.status != "closed", visible_to(user.id))
         .group_by(Opportunity.organization)
         .order_by(func.count().desc(), Opportunity.organization)
         .limit(60)
     ).all()
-    type_rows = db.execute(select(Opportunity.type).distinct().order_by(Opportunity.type)).all()
+    type_rows = db.execute(
+        select(Opportunity.type).where(visible_to(user.id)).distinct().order_by(Opportunity.type)
+    ).all()
     return FacetsOut(
         countries=[r[0] for r in country_rows],
         fields=[r[0] for r in field_rows],

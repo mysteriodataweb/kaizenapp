@@ -61,6 +61,29 @@
 - Uniquement des sources publiques et autorisées ; `robots.txt` respecté pour les pages HTML ; délai minimal par hôte ;
   `Retry-After` respecté ; arrêt immédiat sur 401/403/CAPTCHA (**aucun contournement**) ; User-Agent identifiable.
 
+## Ajout d'une offre par lien (URL fournie par l'utilisateur)
+
+- **Protection SSRF** : http/https uniquement, ports 80/443, pas d'identifiants dans l'URL ; le nom d'hôte est résolu
+  et **toutes** les adresses doivent être publiques (refus du bouclage, des réseaux privés, link-local dont
+  `169.254.169.254`, adresses réservées, IPv6 locales et IPv4 encapsulées) ; contrôle répété **à chaque redirection**
+  (5 au plus) ; 3 Mo lus au plus ; délai de 15 s ; types de contenu limités (HTML, JSON, PDF).
+- Limite connue : entre la vérification DNS et la connexion, un domaine piégé pourrait changer d'adresse (DNS rebinding).
+  Le risque est réduit (aucune réponse brute renvoyée au client, seuls des champs extraits) ; une connexion épinglée sur
+  l'adresse vérifiée serait l'étape suivante si nécessaire.
+- Mêmes règles que la collecte : `robots.txt` respecté, arrêt sur 401/403, page de connexion ou vérification anti-robot,
+  **aucun contournement** ; l'utilisateur complète alors lui-même le formulaire.
+- **LinkedIn n'est jamais interrogé** (connexion requise, robots.txt restrictif) : seule l'adresse du lien est analysée ;
+  le reste vient du texte que l'utilisateur copie lui-même depuis sa session.
+- Rien n'est inventé : champ introuvable = vide ; date trouvée = « à vérifier » tant que l'utilisateur ne la confirme pas ;
+  avec l'IA, le texte collé est traité comme une **donnée** (balises dédiées, sortie JSON contrainte par schéma) et chaque
+  valeur extraite (intitulé, entreprise, lieu, date via son extrait, durée, documents, critères) doit **figurer dans le texte**,
+  sinon elle est écartée — une injection de consignes dans le texte ne peut donc pas introduire de fausse information.
+- **Offres personnelles privées** (`owner_user_id`) : filtrées partout (catalogue, détail, favoris, suivi, facettes, tableau
+  de bord, calcul des scores, assistant) ; l'offre d'un autre utilisateur répond 404. Modification et suppression réservées à
+  l'auteur ; la collecte ne les rattache ni ne les modifie jamais ; supprimées avec le compte.
+- Abus limités : 30 analyses / heure et 200 ajouts / jour par utilisateur (les offres privées ne concernent que leur
+  auteur) ; la description est affichée comme texte (aucun HTML interprété).
+
 ## E-mails
 
 - Destinataires restreints à l'adresse **confirmée** du compte ; les adresses supplémentaires autorisées côté serveur

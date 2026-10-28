@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowLeft, BookmarkPlus, ExternalLink, Heart } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, ExternalLink, Heart, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,7 @@ import { AssistPanel } from "@/features/assist/assist-panel";
 import { DeadlineBadge, StatusBadge, TypeBadge, VerificationBadge } from "@/features/shared/badges";
 import { useUser } from "@/features/shared/user-context";
 import { label, t } from "@/i18n";
-import { ApiError, errorMessage } from "@/lib/api";
+import { api, ApiError, errorMessage } from "@/lib/api";
 import { countryName, formatDate, languageName, placeLabel } from "@/lib/format";
 import type { OpportunityDetail as Detail } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
@@ -33,6 +34,7 @@ export function OpportunityDetailView({ id }: { id: string }) {
   const user = useUser();
   const tz = user.timezone;
   const { notify } = useToast();
+  const router = useRouter();
   const { data: o, error, isLoading, mutate } = useApi<Detail>(`opportunities/${id}`);
   const [busy, setBusy] = useState(false);
 
@@ -49,6 +51,19 @@ export function OpportunityDetailView({ id }: { id: string }) {
     } catch (err) {
       notify(errorMessage(err), "error");
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm("Supprimer cette offre et son suivi de votre liste ?")) return;
+    setBusy(true);
+    try {
+      await api(`opportunities/${id}`, { method: "DELETE" });
+      notify("Offre supprimée.");
+      router.push("/queue");
+    } catch (err) {
+      notify(errorMessage(err), "error");
       setBusy(false);
     }
   }
@@ -71,7 +86,7 @@ export function OpportunityDetailView({ id }: { id: string }) {
         <div className="flex flex-wrap gap-1.5">
           <TypeBadge type={o.type} />
           <DeadlineBadge at={o.deadline_at} status={o.deadline_status} tz={tz} />
-          <VerificationBadge value={o.verification_status} />
+          {o.is_private ? <Badge tone="accent">Offre personnelle</Badge> : <VerificationBadge value={o.verification_status} />}
           {o.status === "closed" && <Badge tone="neutral">{t.publication.closed}</Badge>}
           {o.application_status && <StatusBadge status={o.application_status} />}
         </div>
@@ -87,6 +102,12 @@ export function OpportunityDetailView({ id }: { id: string }) {
             {o.is_favorite ? "Favori" : "Ajouter aux favoris"}
           </Button>
           <LinkButton href={o.official_url} external icon={<ExternalLink className="size-4" aria-hidden />}>{t.common.officialSource}</LinkButton>
+          {o.is_private && (
+            <>
+              <LinkButton href={`/opportunities/${id}/edit`} variant="secondary" icon={<Pencil className="size-4" aria-hidden />}>Modifier</LinkButton>
+              <Button variant="danger" onClick={remove} loading={busy} icon={<Trash2 className="size-4" aria-hidden />}>Supprimer</Button>
+            </>
+          )}
         </div>
       </header>
 

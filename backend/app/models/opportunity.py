@@ -74,7 +74,20 @@ class Opportunity(UUIDPk, Timestamps, Base):
         CheckConstraint(check_in("status", PublicationStatus), name="status_valid"),
         CheckConstraint("official_url <> ''", name="official_url_present"),
         CheckConstraint("(deadline_at IS NULL) = (deadline_status = 'unknown')", name="deadline_consistent"),
-        UniqueConstraint("canonical_url", name="uq_opportunities_canonical_url"),
+        # Une URL canonique est unique dans le catalogue commun, et pour chaque utilisateur parmi ses offres privées.
+        Index(
+            "uq_opportunities_canonical_public",
+            "canonical_url",
+            unique=True,
+            postgresql_where=text("owner_user_id IS NULL"),
+        ),
+        Index(
+            "uq_opportunities_owner_canonical",
+            "owner_user_id",
+            "canonical_url",
+            unique=True,
+            postgresql_where=text("owner_user_id IS NOT NULL"),
+        ),
         Index("ix_opportunities_deadline", "deadline_at"),
         Index("ix_opportunities_type_status", "type", "status"),
         Index("ix_opportunities_first_seen", "first_seen_at"),
@@ -124,6 +137,10 @@ class Opportunity(UUIDPk, Timestamps, Base):
         UUID(as_uuid=True), ForeignKey("sources.id", ondelete="SET NULL")
     )
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(100)), nullable=False, server_default="{}")
+    # NULL = catalogue commun ; sinon offre privée, ajoutée à partir d'un lien et visible de son seul auteur.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

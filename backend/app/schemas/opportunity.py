@@ -46,6 +46,8 @@ class OpportunityListItem(ORMModel):
     application_id: uuid.UUID | None = None
     application_status: str | None = None
     match: MatchSummary | None = None
+    # Offre ajoutée par l'utilisateur à partir d'un lien : visible de lui seul, modifiable et supprimable.
+    is_private: bool = False
 
 
 class OpportunityDetail(OpportunityListItem):

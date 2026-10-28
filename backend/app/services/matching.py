@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.timeutil import utcnow
 from app.models import Match, Opportunity, Profile, User
+from app.services.visibility import visible_to
 from app.workers.matching.engine import ENGINE_VERSION, OpportunityData, ProfileData, compute_match
 
 logger = logging.getLogger("app.matching")
@@ -44,7 +45,11 @@ def recompute_for_user(db: Session, user: User, *, force: bool = False, batch: i
     profile = db.scalar(select(Profile).where(Profile.user_id == user.id))
     if profile is None:
         return 0
-    query = select(Opportunity).outerjoin(Match, and_(Match.opportunity_id == Opportunity.id, Match.user_id == user.id))
+    query = (
+        select(Opportunity)
+        .outerjoin(Match, and_(Match.opportunity_id == Opportunity.id, Match.user_id == user.id))
+        .where(visible_to(user.id))
+    )
     if not force:
         query = query.where(
             or_(

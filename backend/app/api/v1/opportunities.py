@@ -3,15 +3,24 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
 from app.models import Match
 from app.schemas.common import Page
+from app.schemas.link_import import (
+    ImportIn,
+    ImportOut,
+    ImportPreviewIn,
+    ImportPreviewOut,
+    OpportunityFields,
+    QuickImportIn,
+    QuickImportOut,
+)
 from app.schemas.opportunity import FacetsOut, OpportunityDetail, OpportunityFilters, OpportunityListItem
-from app.services import matching
+from app.services import link_import, matching
 from app.services import opportunities as service
 
 router = APIRouter(tags=["opportunités"])
@@ -38,14 +47,63 @@ def list_opportunities(
     return Page(items=items, total=total, page=filters.page, page_size=filters.page_size)
 
 
+@router.post(
+    "/opportunities/import/preview",
+    response_model=ImportPreviewOut,
+    summary="Analyse un lien (et le texte collé) et propose un brouillon : rien n'est enregistré",
+)
+def import_preview(data: ImportPreviewIn, user: CurrentUser, db: DbSession) -> ImportPreviewOut:
+    return link_import.preview(db, user, data.url, data.text)
+
+
+@router.post(
+    "/opportunities/import",
+    response_model=ImportOut,
+    summary="Enregistre une offre personnelle relue par l'utilisateur (privée, dédoublonnée, suivie)",
+)
+def import_opportunity(data: ImportIn, user: CurrentUser, db: DbSession) -> ImportOut:
+    return link_import.create(db, user, data)
+
+
+@router.post(
+    "/opportunities/import/quick",
+    response_model=QuickImportOut,
+    summary="Enregistre plusieurs liens d'un coup, sans lecture des pages, et les ajoute à « À explorer »",
+)
+def quick_import(data: QuickImportIn, user: CurrentUser, db: DbSession) -> QuickImportOut:
+    return link_import.quick_save(db, user, data)
+
+
 @router.get("/opportunities/facets", response_model=FacetsOut)
 def facets(user: CurrentUser, db: DbSession) -> FacetsOut:
-    return service.facets(db)
+    return service.facets(db, user)
 
 
 @router.get("/opportunities/{opportunity_id}", response_model=OpportunityDetail)
 def get_opportunity(opportunity_id: uuid.UUID, user: CurrentUser, db: DbSession) -> OpportunityDetail:
     return service.get_detail(db, user, opportunity_id)
+
+
+@router.put(
+    "/opportunities/{opportunity_id}",
+    response_model=OpportunityDetail,
+    summary="Modifie une offre personnelle (son auteur uniquement)",
+)
+def update_opportunity(
+    opportunity_id: uuid.UUID, data: OpportunityFields, user: CurrentUser, db: DbSession
+) -> OpportunityDetail:
+    link_import.update(db, user, opportunity_id, data)
+    return service.get_detail(db, user, opportunity_id)
+
+
+@router.delete(
+    "/opportunities/{opportunity_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Supprime une offre personnelle et son suivi (son auteur uniquement)",
+)
+def delete_opportunity(opportunity_id: uuid.UUID, user: CurrentUser, db: DbSession) -> Response:
+    link_import.remove(db, user, opportunity_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/opportunities/{opportunity_id}/favorite", response_model=FavoriteOut)

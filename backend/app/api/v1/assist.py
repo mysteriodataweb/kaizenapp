@@ -22,7 +22,7 @@ def status() -> dict[str, object]:
 
 @router.post("/generate", response_model=AssistOut)
 def generate(data: AssistRequest, user: CurrentUser, db: DbSession) -> AssistOut:
-    opp = opportunities.get_opportunity(db, data.opportunity_id)
+    opp = opportunities.get_opportunity(db, data.opportunity_id, user)
     profile = profile_service.get_or_create(db, user)
     db.commit()
     missing = ai.missing_information(data.kind, profile)
