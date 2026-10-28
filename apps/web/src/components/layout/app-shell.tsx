@@ -6,6 +6,7 @@ import {
   CalendarDays,
   FileText,
   Gauge,
+  ListChecks,
   LogOut,
   Menu,
   Radar,
@@ -26,6 +27,7 @@ import type { User } from "@/lib/types";
 const NAV = [
   { href: "/dashboard", label: t.nav.dashboard, icon: Gauge },
   { href: "/opportunities", label: t.nav.opportunities, icon: Radar },
+  { href: "/queue", label: t.nav.queue, icon: ListChecks },
   { href: "/matches", label: t.nav.matches, icon: Sparkles },
   { href: "/applications", label: t.nav.applications, icon: BriefcaseBusiness },
   { href: "/calendar", label: t.nav.calendar, icon: CalendarDays },

@@ -26,7 +26,15 @@ from app.core.security import (
     verify_password,
 )
 from app.core.timeutil import utcnow
-from app.models import AuthAttempt, AuthSession, Document, EmailVerificationToken, PasswordResetToken, User
+from app.models import (
+    Application,
+    AuthAttempt,
+    AuthSession,
+    Document,
+    EmailVerificationToken,
+    PasswordResetToken,
+    User,
+)
 from app.models.notification import NotificationPreference
 from app.services.storage import get_storage
 
@@ -363,6 +371,8 @@ def delete_account(db: Session, user: User, password: str) -> None:
             raise Conflict("Le dernier compte administrateur ne peut pas être supprimé.", code="last_admin")
     keys = db.scalars(select(Document.storage_key).where(Document.user_id == user.id)).all()
     user_id = user.id
+    # Les candidatures référencent les offres en RESTRICT : supprimées avant les offres privées de l'utilisateur.
+    db.execute(delete(Application).where(Application.user_id == user_id))
     db.execute(delete(User).where(User.id == user_id))
     db.commit()
     storage = get_storage()

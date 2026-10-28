@@ -71,23 +71,31 @@ Le token Greenhouse est le segment d'URL `boards.greenhouse.io/<token>` ; le sit
 Une source non officielle n'écrase jamais les données d'une source officielle. Pour les sources à liste complète
 (Greenhouse, Lever), une annonce disparue lors d'un passage complet sans erreur est **fermée** (jamais supprimée).
 
-## Ajout manuel par lien
+## Offres personnelles (ajout par lien)
 
-Pour les offres que la collecte ne couvre pas, chaque utilisateur peut coller un lien (**Opportunités → Ajouter une offre**).
-Ce n'est pas un connecteur : aucune collecte planifiée, une seule page lue à la demande.
+Pour les offres que la collecte ne couvre pas, chaque utilisateur peut les enregistrer à partir de leur lien
+(**Opportunités → Enregistrer des offres**). Ce n'est pas un connecteur : rien n'est collecté automatiquement, et les
+offres ainsi ajoutées sont **privées** (colonne `owner_user_id`) : visibles, modifiables et supprimables par leur seul auteur,
+jamais rattachées ni modifiées par la collecte.
 
 | Lien | Méthode | Données |
 | --- | --- | --- |
+| LinkedIn (`/jobs/view/…`, `/comm/jobs/view/…`, `?currentJobId=…`) | **Aucune requête** (connexion requise, robots.txt) : adresse du lien | identifiant (URL canonique `linkedin.com/jobs/view/{id}`), intitulé et entreprise lorsqu'ils figurent dans l'adresse |
 | `boards.greenhouse.io/{board}/jobs/{id}` | API publique Greenhouse (offre unique) | titre, organisme, lieu, pays, description, départements |
-| `jobs.lever.co/{site}/{uuid}` (et `jobs.eu.lever.co`) | API publique Lever (offre unique) | titre, lieu, pays, télétravail, description, équipe (pas le nom de l'organisme) |
+| `jobs.lever.co/{site}/{uuid}` (et `jobs.eu.lever.co`) | API publique Lever (offre unique) | titre, lieu, pays, télétravail, description, équipe |
 | Page avec données structurées schema.org `JobPosting` | JSON-LD | titre, organisme, lieu/pays, date limite (`validThrough`), type (`INTERN`), rémunération, description |
-| Autre page HTML | Contenu de la page | titre (`og:title`, `h1`, `<title>`), organisme (`og:site_name`), description, date limite repérée près d'un mot-clé |
+| Autre page HTML | Contenu de la page | titre (`og:title`, `h1`, `<title>`), organisme (`og:site_name`), description, date limite repérée |
 | PDF (appel à candidatures) | Texte du document | première ligne comme titre, description, date limite repérée |
+| **Texte collé** par l'utilisateur | IA si configurée (`AI_PROVIDER`), sinon règles | IA : intitulé, entreprise, lieu, pays, type, date limite, durée, documents, critères — chaque valeur est **vérifiée dans le texte** et écartée sinon. Règles : description, date limite, type |
 
-Le brouillon est **relu et complété par l'utilisateur** avant enregistrement. L'enregistrement passe par le pipeline commun
-(validation `NormalizedOpportunity`, dédoublonnage par URL canonique puis titre + organisme + date + lieu, provenance) via la
-source interne `manual-links` (désactivée, masquée de l'administration des sources). Les offres ajoutées sont communes à
-tous les membres, marquées « non vérifiées », et leurs scores sont calculés pour chacun.
+Deux façons d'enregistrer :
+- **Plusieurs liens d'un coup** (jusqu'à 50) : aucune page lue ; chaque offre est créée avec ce que contient son lien
+  (sinon « Offre LinkedIn n° … » / « À préciser », à compléter plus tard) et ajoutée à « À explorer ».
+- **Une offre détaillée** : lien + texte facultatif → brouillon relu et complété avant enregistrement.
+
+La liste **À postuler** présente les offres suivies non envoyées, une à la fois (échéance la plus proche d'abord, puis sans
+date dans l'ordre d'ajout, puis échéances dépassées), avec « Ouvrir l'offre », « J'ai postulé » (confirmation humaine),
+« Plus tard » et « Retirer ».
 
 ## Ajouter un connecteur
 

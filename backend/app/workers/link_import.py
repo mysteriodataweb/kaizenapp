@@ -21,7 +21,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-from urllib.parse import quote, urljoin, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -47,6 +47,7 @@ LEVER_RE = re.compile(
     r"^https://jobs\.(?P<eu>eu\.)?lever\.co/(?P<site>[\w.-]+)/(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
     re.I,
 )
+LINKEDIN_VIEW_RE = re.compile(r"/(?:comm/)?jobs/view/(?P<segment>[^/?#]+)", re.I)
 LOGIN_PATH_RE = re.compile(r"/(login|signin|sign-in|authwall|connexion|auth)(/|$|\?)", re.I)
 
 Resolver = Callable[[str, int], list[str]]
@@ -480,3 +481,87 @@ def extract(url: str, fetcher: SafeFetcher) -> Extraction:
     if fetched.truncated and result.method != "pdf":
         result.notes.append("Page très longue : seul le début a été lu.")
     return result
+
+
+@dataclass
+class LinkedInJob:
+    job_id: str | None
+    canonical_url: str | None
+    title: str | None
+    organization: str | None
+
+
+def _humanize(slug: str | None, *, words: bool = False) -> str | None:
+    if not slug:
+        return None
+    text = " ".join(slug.replace("-", " ").replace("_", " ").split())
+    if not text:
+        return None
+    return text.title() if words else text[0].upper() + text[1:]
+
+
+def parse_linkedin(url: str) -> LinkedInJob | None:
+    """Lien LinkedIn -> identifiant, URL canonique, et titre/entreprise lisibles dans l'adresse elle-même.
+
+    Aucune requête n'est envoyée à LinkedIn (connexion requise et robots.txt restrictif)."""
+    parts = urlsplit(url.strip())
+    host = (parts.hostname or "").lower()
+    if host != "linkedin.com" and not host.endswith(".linkedin.com"):
+        return None
+    job_id = slug = None
+    view = LINKEDIN_VIEW_RE.search(parts.path)
+    if view:
+        segment = unquote(view.group("segment"))
+        found = re.search(r"(\d{6,})$", segment)
+        if found:
+            job_id = found.group(1)
+            slug = segment[: found.start()].rstrip("-") or None
+    if job_id is None:
+        current = (parse_qs(parts.query).get("currentJobId") or [""])[0]
+        job_id = current if current.isdigit() else None
+    if job_id is None:
+        return LinkedInJob(None, None, None, None)
+    title_slug, company_slug = slug.rsplit("-at-", 1) if slug and "-at-" in slug else (slug, None)
+    return LinkedInJob(
+        job_id,
+        f"https://www.linkedin.com/jobs/view/{job_id}",
+        _humanize(title_slug),
+        _humanize(company_slug, words=True),
+    )
+
+
+def extraction_from_linkedin(job: LinkedInJob) -> Extraction:
+    notes = [
+        "LinkedIn ne permet pas la lecture automatique de ses offres (connexion requise) : "
+        "aucune requête n'est envoyée à LinkedIn."
+    ]
+    if job.job_id is None:
+        notes.append("Ce lien LinkedIn ne contient pas d'identifiant d'offre : ouvrez l'offre et copiez son lien.")
+        return Extraction("linkedin-url", {}, notes, False)
+    fields = {
+        "official_url": job.canonical_url,
+        "title": job.title,
+        "organization": job.organization,
+        "type": guess_type(job.title),
+    }
+    if job.title or job.organization:
+        notes.append("Intitulé et entreprise tirés de l'adresse du lien : à vérifier.")
+    notes.append("Pour remplir le reste automatiquement, collez le texte de l'offre (copié depuis LinkedIn).")
+    return Extraction("linkedin-url", fields, notes, False)
+
+
+def extract_from_text_rules(text: str) -> Extraction:
+    """Texte collé par l'utilisateur, sans IA : description, date limite et type uniquement."""
+    lines = [" ".join(line.split()) for line in text.splitlines()]
+    cleaned = "\n".join(line for line in lines if line)
+    deadline = extract_deadline(cleaned)
+    intern = bool(is_internship_title(cleaned[:600]))
+    fields: dict[str, Any] = {
+        "description": _clip(cleaned),
+        "type": "internship" if intern else guess_type(cleaned[:300]),
+        **_deadline_fields(deadline),
+    }
+    notes = ["Texte de l'offre repris comme description."]
+    if deadline:
+        notes.append("Une date limite a été repérée dans le texte : à vérifier.")
+    return Extraction("texte", fields, notes, True)

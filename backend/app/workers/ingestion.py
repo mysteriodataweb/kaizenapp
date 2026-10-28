@@ -101,11 +101,16 @@ def upsert_opportunity(db: Session, source: Source, item: NormalizedOpportunity)
     if item.external_id:
         opp = db.scalar(
             select(Opportunity).where(
-                Opportunity.primary_source_id == source.id, Opportunity.external_id == item.external_id
+                Opportunity.primary_source_id == source.id,
+                Opportunity.external_id == item.external_id,
+                Opportunity.owner_user_id.is_(None),
             )
         )
     if opp is None:
-        opp = db.scalar(select(Opportunity).where(Opportunity.canonical_url == canonical))
+        # Les offres privées des utilisateurs ne sont jamais rattachées ni modifiées par la collecte.
+        opp = db.scalar(
+            select(Opportunity).where(Opportunity.canonical_url == canonical, Opportunity.owner_user_id.is_(None))
+        )
     alt_source = False
     if opp is None:
         candidates = db.scalars(
@@ -114,6 +119,7 @@ def upsert_opportunity(db: Session, source: Source, item: NormalizedOpportunity)
                 Opportunity.organization_norm == org_norm,
                 Opportunity.type == data["type"],
                 Opportunity.primary_source_id != source.id,
+                Opportunity.owner_user_id.is_(None),
             )
         ).all()
         for cand in candidates:

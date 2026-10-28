@@ -38,7 +38,7 @@ Plan gratuit Neon : suffisant pour un usage personnel ; le calcul se suspend apr
    - `FRONTEND_URL` et `CORS_ORIGINS` : provisoirement `https://example.invalid`, à corriger à l'étape 4
 3. **Manual Deploy** du Web Service. Le démarrage exécute : `alembic upgrade head` → `seed-sources` →
    `bootstrap-admin` → `uvicorn`.
-4. Vérifier : `https://<service>.onrender.com/api/v1/health` doit renvoyer `"database": "ok"` et `"migration": "0002"`.
+4. Vérifier : `https://<service>.onrender.com/api/v1/health` doit renvoyer `"database": "ok"` et `"migration": "0003"`.
    Les logs (onglet **Logs**) sont en JSON.
 5. Retirer `BOOTSTRAP_ADMIN_PASSWORD` du groupe après la première connexion réussie (l'amorçage ne s'exécute de
    toute façon que si aucun compte n'existe).
@@ -98,7 +98,10 @@ Sans configuration (`none`), le téléversement est désactivé proprement (mess
 
 ## 7. Assistant IA (facultatif)
 
-`AI_PROVIDER=anthropic`, `AI_API_KEY=<clé>`, éventuellement `AI_MODEL` (défaut `claude-opus-5-5`). Sinon la fonction reste désactivée.
+Render (groupe) : `AI_PROVIDER=anthropic` (exactement) **et** `AI_API_KEY=<clé>` (console.anthropic.com → API Keys),
+éventuellement `AI_MODEL` (défaut `claude-opus-5-5`), puis **Manual Deploy**. Vérification : `/api/v1/health` → `"ai_enabled": true`.
+Utilisée par l'assistant de rédaction (page d'une offre) et par l'analyse du texte collé lors de l'enregistrement d'une offre.
+Sans ces deux variables, ces fonctions restent désactivées proprement.
 
 ## 8. Ouvrir les inscriptions (facultatif)
 

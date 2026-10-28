@@ -47,8 +47,11 @@ export interface ImportDraft {
   countries: string[];
   remote: boolean | null;
   deadline_date: string | null;
+  duration_months: number | null;
   fields: string[];
   stipend: string | null;
+  required_documents: string[];
+  eligibility_criteria: string | null;
 }
 
 export interface ImportPreview {
@@ -56,8 +59,16 @@ export interface ImportPreview {
   existing_opportunity_id: string | null;
   fetched: boolean;
   method: string;
+  ai_used: boolean;
   notes: string[];
   draft: ImportDraft;
+}
+
+export interface QuickImportResult {
+  items: { url: string; opportunity_id: string | null; application_id: string | null; created: boolean; title: string | null; error: string | null }[];
+  created: number;
+  already_saved: number;
+  errors: number;
 }
 
 export interface ImportResult {
@@ -118,6 +129,8 @@ export interface OpportunityListItem {
   application_id: string | null;
   application_status: ApplicationStatus | null;
   match: MatchSummary | null;
+  /** Offre ajoutée par l'utilisateur à partir d'un lien : visible de lui seul. */
+  is_private: boolean;
 }
 
 export interface MatchListItem extends OpportunityListItem {

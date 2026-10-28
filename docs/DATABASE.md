@@ -38,7 +38,9 @@ PostgreSQL (Neon en production). Schéma versionné par Alembic (`backend/migrat
 - `ck_opportunities_deadline_consistent` : pas de date ⇔ statut de date `unknown`.
 - `ck_matches_score_range` (0–100), `ck_matches_confidence_range` (0–1).
 - `ck_applications_submitted_requires_date` : une candidature envoyée a une date d'envoi.
-- `uq_opportunities_canonical_url` et index unique partiel `(primary_source_id, external_id)`.
+- URL canonique unique dans le catalogue commun (`uq_opportunities_canonical_public`, partiel `owner_user_id IS NULL`) et par
+  utilisateur pour ses offres personnelles (`uq_opportunities_owner_canonical`) ; index unique partiel `(primary_source_id, external_id)`.
+- `opportunities.owner_user_id` (migration `0003`) : NULL = catalogue commun, sinon offre privée de cet utilisateur (cascade à la suppression du compte).
 
 ## Index
 

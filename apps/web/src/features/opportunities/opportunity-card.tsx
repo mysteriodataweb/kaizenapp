@@ -64,7 +64,11 @@ export function OpportunityCard({ item, onChange }: { item: OpportunityListItem 
           <TypeBadge type={item.type} />
           <DeadlineBadge at={item.deadline_at} status={item.deadline_status} tz={user.timezone} />
           {item.status === "closed" && <Badge tone="neutral">{t.publication.closed}</Badge>}
-          {item.verification_status !== "verified" && <Badge tone="outline" title="Annonce issue d'un agrégateur : vérifiez-la sur le site officiel">Non vérifiée</Badge>}
+          {item.is_private ? (
+            <Badge tone="accent" title="Offre ajoutée par vous à partir d'un lien : visible de vous seul">Perso</Badge>
+          ) : (
+            item.verification_status !== "verified" && <Badge tone="outline" title="Annonce issue d'un agrégateur : vérifiez-la sur le site officiel">Non vérifiée</Badge>
+          )}
         </div>
         <button
           type="button"

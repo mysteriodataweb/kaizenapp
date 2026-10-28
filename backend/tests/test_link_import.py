@@ -278,6 +278,7 @@ def test_preview_detects_existing_offer_without_fetching(client, db, auth, web):
     requested.clear()
     body = preview(client, auth, url + "?utm_source=newsletter").json()
     assert body["existing_opportunity_id"] == created["opportunity_id"]
+    assert body["notes"] == ["Cette offre est déjà enregistrée."]
     assert requested == []
 
 
@@ -305,6 +306,7 @@ def test_import_creates_offer_with_provenance_match_and_follow(client, db, user,
 
     opp = db.get(Opportunity, out["opportunity_id"])
     assert opp.verification_status == "unverified"  # relu par l'utilisateur ≠ confirmé par la source
+    assert opp.owner_user_id == user.id  # offre personnelle
     assert opp.deadline_status == "unverified"
     # Fin de journée dans le fuseau de l'utilisateur (Europe/Paris, UTC+1 en mars)
     assert opp.deadline_at == datetime(2027, 3, 15, 22, 59, 59, tzinfo=UTC)
@@ -321,39 +323,6 @@ def test_import_confirmed_deadline(client, db, auth):
     url = "https://careers.acme.example/jobs/43"
     out = client.post("/api/v1/opportunities/import", headers=auth, json=_payload(url, deadline_confirmed=True)).json()
     assert db.get(Opportunity, out["opportunity_id"]).deadline_status == "confirmed"
-
-
-def test_import_never_overwrites_existing_offer(client, db, auth):
-    url = "https://careers.acme.example/jobs/42"
-    first = client.post("/api/v1/opportunities/import", headers=auth, json=_payload(url)).json()
-    make_user(db, "autre@example.com")
-    other = login(client, "autre@example.com")
-    second = client.post(
-        "/api/v1/opportunities/import",
-        headers=other,
-        json=_payload(url + "/", title="Titre modifié par quelqu'un d'autre", follow=True),
-    ).json()
-    assert second["created"] is False and second["opportunity_id"] == first["opportunity_id"]
-    assert second["application_id"]
-    assert db.get(Opportunity, first["opportunity_id"]).title == "Stage Data Analyst (6 mois)"
-    assert db.scalar(select(func.count()).select_from(Opportunity)) == 1
-
-
-def test_imported_offer_is_shared_and_scored_for_other_members(client, db, auth):
-    make_user(db, "autre@example.com")
-    other = login(client, "autre@example.com")
-    client.put("/api/v1/profile", headers=other, json={"full_name": "Autre", "languages": []})
-    out = client.post(
-        "/api/v1/opportunities/import", headers=auth, json=_payload("https://careers.acme.example/jobs/44")
-    ).json()
-    listing = client.get("/api/v1/opportunities", headers=other).json()
-    assert [o["id"] for o in listing["items"]] == [out["opportunity_id"]]
-    other_id = client.get("/api/v1/auth/me", headers=other).json()["id"]
-    assert db.scalar(
-        select(func.count())
-        .select_from(Match)
-        .where(Match.user_id == other_id, Match.opportunity_id == out["opportunity_id"])
-    )
 
 
 def test_import_validates_input(client, auth):
@@ -389,14 +358,310 @@ def test_rate_limits(client, auth, web, monkeypatch):
     assert again.status_code == 429
 
 
-def test_manual_source_is_not_a_collection_source(client, db, auth):
+# ------------------------------------------------------------------ LinkedIn, texte collé, IA
+LINKEDIN = "https://fr.linkedin.com/jobs/view/stagiaire-data-analyst-at-soci%C3%A9t%C3%A9-g%C3%A9n%C3%A9rale-4012345678?refId=x&trackingId=y"
+OFFER_TEXT = """Stagiaire Data Analyst (H/F)
+Société Générale · Paris, Île-de-France, France · il y a 2 jours
+Stage · Débutant
+Missions : tableaux de bord, analyses SQL.
+Profil : étudiant(e) en Master 1 ou 2 en statistiques.
+Documents : CV et lettre de motivation.
+Date limite de candidature : 15 mars 2027
+Durée : 6 mois"""
+
+
+class FakeProvider:
+    name = "fake"
+
+    def __init__(self, payload=None, error=None):
+        self.payload, self.error, self.calls = payload, error, []
+
+    def generate(self, system, prompt):
+        raise AssertionError("non utilisé")
+
+    def generate_json(self, system, prompt, schema):
+        self.calls.append(prompt)
+        if self.error:
+            raise self.error
+        return self.payload
+
+
+def _ai_payload(**extra):
+    base = {
+        "title": "Stagiaire Data Analyst (H/F)",
+        "organization": "Société Générale",
+        "location": "Paris, Île-de-France, France",
+        "countries": ["FR"],
+        "remote": "unknown",
+        "type": "internship",
+        "deadline": "2027-03-15",
+        "deadline_quote": "Date limite de candidature : 15 mars 2027",
+        "duration_months": 6,
+        "stipend": "",
+        "required_documents": ["CV", "lettre de motivation"],
+        "eligibility_criteria": ["Profil : étudiant(e) en Master 1 ou 2 en statistiques."],
+        "fields": [],
+    }
+    return {**base, **extra}
+
+
+def test_linkedin_link_is_never_fetched(client, auth, web):
+    requested = web()
+    body = preview(client, auth, LINKEDIN).json()
+    draft = body["draft"]
+    assert requested == []  # aucune requête vers LinkedIn
+    assert body["method"] == "linkedin-url" and body["fetched"] is False
+    assert draft["official_url"] == "https://www.linkedin.com/jobs/view/4012345678"
+    assert draft["title"] == "Stagiaire data analyst"
+    assert draft["organization"] == "Société Générale"
+    assert draft["type"] == "internship"
+    assert any("LinkedIn" in n for n in body["notes"])
+    assert any("collez le texte" in n for n in body["notes"])
+
+
+def test_linkedin_variants_point_to_the_same_offer(client, auth, web):
+    web()
+    created = client.post(
+        "/api/v1/opportunities/import",
+        headers=auth,
+        json=_payload("https://www.linkedin.com/jobs/view/4012345678/?trackingId=abc"),
+    ).json()
+    for variant in (
+        "https://www.linkedin.com/jobs/collections/recommended/?currentJobId=4012345678",
+        "https://www.linkedin.com/comm/jobs/view/4012345678/?refId=1",
+    ):
+        body = preview(client, auth, variant).json()
+        assert body["existing_opportunity_id"] == created["opportunity_id"]
+
+
+def test_pasted_text_with_ai_keeps_only_values_found_in_text(client, auth, web, monkeypatch):
+    web()
+    fake = FakeProvider(
+        _ai_payload(
+            stipend="1 500 € par mois",  # absent du texte : écarté
+            fields=["Data", "Finance de marché"],  # « Finance de marché » absent : écarté
+        )
+    )
+    monkeypatch.setattr(service.ai, "get_provider", lambda: fake)
+    resp = client.post("/api/v1/opportunities/import/preview", headers=auth, json={"url": LINKEDIN, "text": OFFER_TEXT})
+    body = resp.json()
+    draft = body["draft"]
+    assert body["ai_used"] is True and body["method"] == "linkedin-url+texte"
+    assert "<texte_offre>" in fake.calls[0] and "Société Générale" in fake.calls[0]
+    assert draft["title"] == "Stagiaire Data Analyst (H/F)"
+    assert draft["organization"] == "Société Générale"
+    assert draft["location"] == "Paris, Île-de-France, France" and draft["countries"] == ["FR"]
+    assert draft["deadline_date"] == "2027-03-15" and draft["duration_months"] == 6
+    assert draft["required_documents"] == ["CV", "lettre de motivation"]
+    assert "Master 1 ou 2" in draft["eligibility_criteria"]
+    assert draft["stipend"] is None and draft["fields"] == ["Data"]
+    assert draft["description"].startswith("Stagiaire Data Analyst")
+
+
+def test_ai_values_absent_from_text_are_discarded(client, auth, web, monkeypatch):
+    web()
+    fake = FakeProvider(
+        _ai_payload(
+            organization="BNP Paribas",
+            location="Lyon",
+            deadline="2027-04-30",
+            deadline_quote="Clôture le 30 avril 2027",
+            duration_months=12,
+        )
+    )
+    monkeypatch.setattr(service.ai, "get_provider", lambda: fake)
+    draft = client.post(
+        "/api/v1/opportunities/import/preview", headers=auth, json={"url": LINKEDIN, "text": OFFER_TEXT}
+    ).json()["draft"]
+    # L'entreprise vient alors de l'adresse du lien ; rien d'inventé n'est conservé
+    assert draft["organization"] == "Société Générale"
+    assert draft["location"] is None and draft["countries"] == []
+    assert draft["deadline_date"] is None and draft["duration_months"] is None
+
+
+def test_pasted_text_without_ai_uses_simple_rules(client, auth, web, monkeypatch):
+    web()
+    monkeypatch.setattr(service.ai, "get_provider", lambda: None)
+    body = client.post(
+        "/api/v1/opportunities/import/preview", headers=auth, json={"url": LINKEDIN, "text": OFFER_TEXT}
+    ).json()
+    assert body["ai_used"] is False
+    assert body["draft"]["deadline_date"] == "2027-03-15"
+    assert body["draft"]["description"].startswith("Stagiaire Data Analyst")
+    assert any("assistant IA" in n for n in body["notes"])
+
+
+def test_ai_failure_falls_back_to_rules(client, auth, web, monkeypatch):
+    from app.core.errors import ServiceUnavailable
+
+    web()
+    fake = FakeProvider(error=ServiceUnavailable("Clé du fournisseur IA invalide.", code="ai_auth"))
+    monkeypatch.setattr(service.ai, "get_provider", lambda: fake)
+    body = client.post(
+        "/api/v1/opportunities/import/preview", headers=auth, json={"url": LINKEDIN, "text": OFFER_TEXT}
+    ).json()
+    assert body["ai_used"] is False and body["draft"]["deadline_date"] == "2027-03-15"
+    assert any("Analyse IA indisponible" in n for n in body["notes"])
+
+
+# ------------------------------------------------------------------ offres privées
+def test_personal_offers_are_invisible_to_other_users(client, db, auth):
+    out = client.post(
+        "/api/v1/opportunities/import",
+        headers=auth,
+        json=_payload("https://careers.acme.example/jobs/77", organization="Organisme Secret"),
+    ).json()
+    oid = out["opportunity_id"]
+    make_user(db, "autre@example.com")
+    other = login(client, "autre@example.com")
+    client.put("/api/v1/profile", headers=other, json={"full_name": "Autre", "languages": []})
+
+    assert client.get("/api/v1/opportunities", headers=other).json()["total"] == 0
+    assert client.get(f"/api/v1/opportunities/{oid}", headers=other).status_code == 404
+    assert client.post(f"/api/v1/opportunities/{oid}/favorite", headers=other).status_code == 404
+    assert client.post("/api/v1/applications", headers=other, json={"opportunity_id": oid}).status_code == 404
+    assert "Organisme Secret" not in client.get("/api/v1/opportunities/facets", headers=other).json()["organizations"]
+    assert client.get("/api/v1/dashboard", headers=other).json()["opportunities_total"] == 0
+    client.post("/api/v1/matches/recompute", headers=other)
+    other_id = client.get("/api/v1/auth/me", headers=other).json()["id"]
+    assert not db.scalar(select(func.count()).select_from(Match).where(Match.user_id == other_id))
+
+    mine = client.get("/api/v1/opportunities", headers=auth).json()
+    assert mine["total"] == 1 and mine["items"][0]["is_private"] is True
+
+    # Le même lien enregistré par quelqu'un d'autre devient SA propre offre, sans toucher à la première
+    second = client.post(
+        "/api/v1/opportunities/import",
+        headers=other,
+        json=_payload("https://careers.acme.example/jobs/77", title="Autre intitulé"),
+    ).json()
+    assert second["created"] is True and second["opportunity_id"] != oid
+    assert db.get(Opportunity, oid).title == "Stage Data Analyst (6 mois)"
+
+
+def test_collection_never_touches_personal_offers(client, db, auth):
+    from app.workers.connectors.base import NormalizedOpportunity
+    from app.workers.connectors.registry import seed_sources
+    from app.workers.ingestion import upsert_opportunity
+
+    url = "https://boards.greenhouse.io/acme/jobs/1"
+    mine = client.post("/api/v1/opportunities/import", headers=auth, json=_payload(url)).json()
+    seed_sources(db)
+    source = db.scalar(select(Source).where(Source.key == "greenhouse-internships"))
+    item = NormalizedOpportunity(
+        type="internship",
+        title="Stage Data Analyst (6 mois)",
+        organization="ACME Analytics",
+        official_url=url,
+        source_url=url,
+        is_official=True,
+    )
+    result = upsert_opportunity(db, source, item)
+    db.commit()
+    assert result.action == "created" and str(result.opportunity_id) != mine["opportunity_id"]
+    assert db.get(Opportunity, mine["opportunity_id"]).owner_user_id is not None
+
+
+# ------------------------------------------------------------------ ajout rapide, modification, suppression
+def test_quick_save_many_links(client, db, auth):
+    urls = [
+        "https://www.linkedin.com/jobs/view/stage-marketing-at-acme-4000000001",
+        "https://www.linkedin.com/jobs/view/4000000002/?trackingId=1",
+        "https://www.linkedin.com/jobs/collections/recommended/?currentJobId=4000000002",  # même offre
+        "https://www.linkedin.com/feed/",
+        "http://127.0.0.1/interne",
+        "https://www.welcometothejungle.com/fr/companies/acme/jobs/stage-data",
+    ]
+    resp = client.post("/api/v1/opportunities/import/quick", headers=auth, json={"urls": urls})
+    assert resp.status_code == 200, resp.text
+    out = resp.json()
+    assert (out["created"], out["already_saved"], out["errors"]) == (3, 1, 2)
+    titles = [i["title"] for i in out["items"] if i["created"]]
+    assert titles == ["Stage marketing", "Offre LinkedIn n° 4000000002", "Offre à compléter — welcometothejungle.com"]
+    first = db.get(Opportunity, out["items"][0]["opportunity_id"])
+    assert first.organization == "Acme" and first.owner_user_id is not None
+    apps = client.get("/api/v1/applications", headers=auth).json()
+    assert len(apps) == 3 and {a["status"] for a in apps} == {"to_explore"}
+
+    again = client.post("/api/v1/opportunities/import/quick", headers=auth, json={"urls": urls[:2]}).json()
+    assert (again["created"], again["already_saved"]) == (0, 2)
+    assert len(client.get("/api/v1/applications", headers=auth).json()) == 3
+
+
+def test_quick_save_respects_daily_limit(client, auth, monkeypatch):
+    monkeypatch.setattr(service, "IMPORTS_PER_DAY", 2)
+    urls = [f"https://www.linkedin.com/jobs/view/40000000{i}" for i in range(10, 13)]
+    assert client.post("/api/v1/opportunities/import/quick", headers=auth, json={"urls": urls}).status_code == 429
+
+
+def test_owner_can_edit_and_delete_personal_offer(client, db, auth):
+    out = client.post(
+        "/api/v1/opportunities/import/quick",
+        headers=auth,
+        json={"urls": ["https://www.linkedin.com/jobs/view/4000000099"]},
+    ).json()
+    oid = out["items"][0]["opportunity_id"]
+    edited = _payload(
+        "https://www.linkedin.com/jobs/view/4000000099",
+        title="Stage Data Analyst",
+        organization="ACME",
+        deadline_date="2027-05-01",
+        deadline_confirmed=True,
+    )
+    resp = client.put(f"/api/v1/opportunities/{oid}", headers=auth, json=edited)
+    assert resp.status_code == 200, resp.text
+    detail = resp.json()
+    assert detail["title"] == "Stage Data Analyst" and detail["organization"] == "ACME"
+    assert detail["deadline_status"] == "confirmed" and detail["is_private"] is True
+
+    make_user(db, "autre@example.com")
+    other = login(client, "autre@example.com")
+    assert client.put(f"/api/v1/opportunities/{oid}", headers=other, json=edited).status_code == 404
+    assert client.delete(f"/api/v1/opportunities/{oid}", headers=other).status_code == 404
+
+    assert client.delete(f"/api/v1/opportunities/{oid}", headers=auth).status_code == 204
+    assert db.get(Opportunity, oid) is None
+    assert client.get("/api/v1/applications", headers=auth).json() == []
+
+
+def test_edit_refuses_public_offers_and_duplicate_links(client, db, auth):
+    from app.workers.connectors.base import NormalizedOpportunity
+    from app.workers.connectors.registry import seed_sources
+    from app.workers.ingestion import upsert_opportunity
+
+    seed_sources(db)
+    source = db.scalar(select(Source).where(Source.key == "greenhouse-internships"))
+    public = upsert_opportunity(
+        db,
+        source,
+        NormalizedOpportunity(
+            type="internship",
+            title="Stage public",
+            organization="ACME",
+            official_url="https://boards.greenhouse.io/acme/jobs/5",
+            source_url="https://boards.greenhouse.io/acme/jobs/5",
+        ),
+    )
+    db.commit()
+    resp = client.put(
+        f"/api/v1/opportunities/{public.opportunity_id}", headers=auth, json=_payload("https://x.example/a")
+    )
+    assert resp.status_code == 403
+    assert client.delete(f"/api/v1/opportunities/{public.opportunity_id}", headers=auth).status_code == 403
+
+    a = client.post("/api/v1/opportunities/import", headers=auth, json=_payload("https://x.example/a")).json()
+    client.post("/api/v1/opportunities/import", headers=auth, json=_payload("https://x.example/b"))
+    clash = client.put(
+        f"/api/v1/opportunities/{a['opportunity_id']}", headers=auth, json=_payload("https://x.example/b")
+    )
+    assert clash.status_code == 409
+
+
+def test_account_deletion_with_personal_offers(client, db):
     make_user(db, "admin@example.com", admin=True)
-    admin = login(client, "admin@example.com")
-    client.post("/api/v1/opportunities/import", headers=auth, json=_payload("https://example.com/offre"))
-    manual = db.scalar(select(Source).where(Source.key == "manual-links"))
-    assert manual is not None and manual.enabled is False
-    keys = [s["key"] for s in client.get("/api/v1/admin/sources", headers=admin).json()]
-    assert "manual-links" not in keys
-    assert client.post(f"/api/v1/admin/sources/{manual.id}/test", headers=admin).status_code == 404
-    dashboard = client.get("/api/v1/dashboard", headers=auth).json()
-    assert all(s["key"] != "manual-links" for s in dashboard["sources"])
+    make_user(db, "membre@example.com")
+    member = login(client, "membre@example.com")
+    client.post("/api/v1/opportunities/import", headers=member, json=_payload("https://x.example/perso"))
+    resp = client.post("/api/v1/auth/delete-account", headers=member, json={"password": "Mot-de-passe-solide-2026"})
+    assert resp.status_code == 200, resp.text
+    assert db.scalar(select(func.count()).select_from(Opportunity)) == 0

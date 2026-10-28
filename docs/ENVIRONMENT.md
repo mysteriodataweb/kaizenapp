@@ -23,7 +23,7 @@ Local : `backend/.env` (lu automatiquement) et `apps/web/.env.local`.
 | `ALLOW_REGISTRATION` | non | `true` ouvre l'inscription publique (adresse confirmée obligatoire). En production, exige Resend configuré | `false` |
 | `EMAIL_VERIFICATION_TTL_HOURS` | non | Validité du lien de confirmation | `48` |
 | `REGISTRATION_MAX_PER_IP_PER_HOUR` / `REGISTRATION_MAX_PER_HOUR` | non | Plafonds d'inscription (par IP / global) | `5` / `30` |
-| `AI_PROVIDER` / `AI_API_KEY` / `AI_MODEL` | non | Assistant de rédaction ; `anthropic` ; modèle par défaut `claude-opus-5-5` | — |
+| `AI_PROVIDER` / `AI_API_KEY` / `AI_MODEL` | non | Assistant de rédaction **et** analyse du texte d'une offre collée (LinkedIn) ; `AI_PROVIDER=anthropic` ; modèle par défaut `claude-opus-5-5` | — |
 | `STORAGE_PROVIDER` | non | `s3`, `local` (dev — disque **éphémère** sur Render) ou `none` (téléversement désactivé) | `none` par défaut sur Render |
 | `STORAGE_BUCKET`, `STORAGE_ENDPOINT_URL`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | avec `s3` | Bucket **privé** S3-compatible (ex. Cloudflare R2 : endpoint `https://<compte>.r2.cloudflarestorage.com`, région `auto`) | — |
 | `MAX_UPLOAD_MB` | non | Taille max. d'un fichier (≤ 4 derrière Vercel) | `4` |

@@ -38,11 +38,11 @@ export function CatalogueView({ mode }: { mode: "opportunities" | "matches" }) {
         description={
           mode === "matches"
             ? "Classement par score de compatibilité (0–100) avec ses raisons. Le score n'est pas une probabilité d'acceptation ; l'éligibilité est évaluée séparément."
-            : "Stages et bourses de master collectés depuis des sources vérifiées ou ajoutés à partir d'un lien, avec leur provenance."
+            : "Stages et bourses de master collectés depuis des sources vérifiées, et vos offres personnelles enregistrées par lien (visibles de vous seul)."
         }
         actions={
           mode === "opportunities" ? (
-            <LinkButton href="/opportunities/new" variant="primary" icon={<Plus className="size-4" aria-hidden />}>Ajouter une offre</LinkButton>
+            <LinkButton href="/opportunities/new" variant="primary" icon={<Plus className="size-4" aria-hidden />}>Enregistrer des offres</LinkButton>
           ) : undefined
         }
       />
@@ -58,7 +58,7 @@ export function CatalogueView({ mode }: { mode: "opportunities" | "matches" }) {
             description={
               Object.keys(filters).some((k) => !["page", "sort"].includes(k))
                 ? "Aucun résultat pour ces filtres. Élargissez votre recherche."
-                : "Le catalogue est vide : ajoutez une offre à partir de son lien, ou activez une source de veille."
+                : "Le catalogue est vide : enregistrez des offres à partir de leurs liens, ou activez une source de veille."
             }
           />
         ) : (
